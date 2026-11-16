@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --bg:#1b1c1d; --surface:#252627; --surface2:#303233; --ink:#e9e9e6; --muted:#a3a5a1;
@@ -24,14 +25,14 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
 h1,h2,h3{font-family:var(--head);font-weight:400;margin:0}
-button,input,select{font:inherit;color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:.35rem .7rem}
 button:hover{border-color:var(--warden)}
 button.primary{background:var(--warden);color:var(--warden-ink);border-color:var(--warden)}
 button.danger{color:var(--blood)}
 button:disabled{opacity:.45;cursor:not-allowed}
 :focus-visible{outline:2px solid var(--warden);outline-offset:2px}
-input,select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.3rem .45rem;max-width:100%}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.3rem .45rem;max-width:100%}
 input[type=number]{width:4.5rem}
 header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:2px solid var(--warden);padding:.6rem 1rem}
 .bar-row{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.2rem;max-width:1100px;margin:0 auto}
@@ -165,7 +166,6 @@ th{font-weight:500;color:var(--muted)}
 <script>
 /* ---------- dice ---------- */
 const rnd = n => Math.floor(Math.random()*n)+1;
-// parse "2d6+1d4+3" -> {terms:[{n,s}], flat}
 function parseDice(expr){
   const out={terms:[],flat:0}; if(!expr) return out;
   expr.replace(/\s/g,'').replace(/-/g,'+-').split('+').filter(Boolean).forEach(t=>{
@@ -253,9 +253,10 @@ function defaults(){
     mkChar({name:'Renn',inParty:false,base:13,per:8,mods:{STR:4,DEX:0,CON:3,INT:1,WIS:1,CHA:-1},weapon:'axes',wTier:1,armorType:'heavy',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:0,healBonus:0,dmgPerSwing:1,note:'Flat +1 damage on each axe swing',known:{}}),
     mkChar({name:'Leon',inParty:false,base:8,per:5,mods:{STR:-1,DEX:2,CON:-1,INT:3,WIS:4,CHA:1},weapon:'magic',wTier:1,armorType:'light',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:0,healBonus:0,healGive:2,dmgPerSwing:0,note:'Flat +2 to healing with magic or med kits',known:{}}),
   ];
-  return {v:1,level:2,round:1,turn:0,inBattle:false,order:[],party,allies:[],enemies:[],
+  return {v:2,level:1,round:1,turn:0,inBattle:false,order:[],party,allies:[],enemies:[],
     inv:{coin:150,potions:2,medkits:4,rations:3,shards:0,herbs:0,materials:0,valuables:0},
-    battle:null,log:[],lastResult:'',lastLoot:'',recruits:[]};
+    story:{updated:'New Run',sections:[{title:'Current scene',items:['Evergreen — Main hall with Teyrn Ray Dryden, Arl Rendon Howe, and Warden-Commander Duncan (Tyr standing nearby).']},{title:'Summary',items:[]},{title:'Open threads',items:[]}]},
+    special:[],maps:[],baseStore:[],battle:null,log:[],lastResult:'',lastLoot:'',recruits:[]};
 }
 let S=defaults();
 
@@ -272,20 +273,98 @@ function byId(id){return all().find(c=>c.id===id)}
 function hpOf(c){if(c.hp==null) c.hp=maxHP(c); return c.hp}
 function profBonus(){return 2+Math.floor((S.level-1)/4)}
 
-/* ---------- logging & save ---------- */
+/* ---------- logging & Google Drive cloud sync ---------- */
 function log(msg){S.log.unshift({t:Date.now(),m:msg}); if(S.log.length>150) S.log.length=150}
-let dbRef=null, saveTimer=null, saving=false, pending=false;
+let saveTimer=null;
+const DRIVE={
+  token:null, fileId:null, busy:false, pending:false,
+  clientId(){try{return localStorage.getItem('greyroad_gdrive_cid')||''}catch(e){return ''}},
+  setClientId(v){try{localStorage.setItem('greyroad_gdrive_cid',v.trim())}catch(e){}},
+  connect(silent=false){
+    const cid=this.clientId();
+    if(!cid){if(!silent) setDriveMsg('Paste your Google Client ID first.'); return}
+    if(!window.google||!google.accounts||!google.accounts.oauth2){if(!silent) setDriveMsg('Google Identity script still loading—try again in a second.'); return}
+    const client=google.accounts.oauth2.initTokenClient({
+      client_id:cid,
+      scope:'https://www.googleapis.com/auth/drive.file',
+      callback:async resp=>{
+        if(resp.error){setDriveMsg('Google sign-in failed: '+resp.error); return}
+        this.token=resp.access_token;
+        setSave('Syncing with Drive…');
+        await this.loadOrCreate();
+      }
+    });
+    client.requestAccessToken({prompt:silent?'':'consent'});
+  },
+  async api(url,opts={}){
+    const res=await fetch(url,{...opts,headers:{'Authorization':'Bearer '+this.token,...(opts.headers||{})}});
+    if(res.status===401){this.token=null; setSave('Drive session expired'); setDriveMsg('Drive session expired—click Connect Google Drive to reconnect.'); throw new Error('401')}
+    return res;
+  },
+  async loadOrCreate(){
+    try{
+      const q=encodeURIComponent("name='the-grey-road-save.json' and trashed=false");
+      const r=await this.api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`);
+      const data=await r.json();
+      if(data.files&&data.files.length){
+        this.fileId=data.files[0].id;
+        const fr=await this.api(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`);
+        const remote=await fr.json();
+        if(remote&&remote.party&&remote.inv){
+          S=remote;
+          try{localStorage.setItem('greyroad',JSON.stringify(S))}catch(e){}
+          render();
+          setSave('Synced with Google Drive');
+          setDriveMsg('Loaded save from Google Drive.');
+          return;
+        }
+      }
+      await this.push(true);
+    }catch(e){
+      setSave('Saved on this device only');
+      setDriveMsg('Drive error: '+e.message);
+    }
+  },
+  async push(creating=false){
+    if(!this.token) return;
+    if(this.busy){this.pending=true; return}
+    this.busy=true; setSave('Saving to Drive…');
+    try{
+      const body=JSON.stringify(S);
+      if(!this.fileId||creating){
+        const meta={name:'the-grey-road-save.json',mimeType:'application/json'};
+        const boundary='greyroad_boundary_99';
+        const multipart=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+        const r=await this.api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+          method:'POST',
+          headers:{'Content-Type':`multipart/related; boundary=${boundary}`},
+          body:multipart
+        });
+        const j=await r.json();
+        if(j.id) this.fileId=j.id;
+      }else{
+        await this.api(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json'},
+          body
+        });
+      }
+      setSave('Synced with Google Drive');
+      setDriveMsg('Synced to Google Drive ('+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+').');
+    }catch(e){
+      setSave('Saved on this device only');
+    }
+    this.busy=false;
+    if(this.pending){this.pending=false; this.push()}
+  }
+};
+function setDriveMsg(t){const el=document.getElementById('gdrive-msg'); if(el) el.textContent=t}
 function persist(){
   try{localStorage.setItem('greyroad',JSON.stringify(S))}catch(e){}
-  if(!dbRef){setSave('Saved on this device');return}
-  clearTimeout(saveTimer); saveTimer=setTimeout(flush,1200); setSave('Saving…');
-}
-async function flush(){
-  if(saving){pending=true;return}
-  saving=true;
-  try{await dbRef.set({state:JSON.stringify(S)}); setSave('Saved')}
-  catch(e){setSave('Saved on this device only')}
-  saving=false; if(pending){pending=false;flush()}
+  if(!DRIVE.token){setSave('Saved on this device'); return}
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>DRIVE.push(),1200);
+  setSave('Queued for Drive…');
 }
 function setSave(t){document.getElementById('m-save').textContent=t}
 function commit(){render();persist()}
@@ -307,7 +386,7 @@ function enemyHit(e,crit){
   const n=e.rank==='normal'?1:2, flat=S.level+(e.rank==='elite'?3:1);
   const r=rollExpr(`${n}d${e.die}`,crit); return {total:r.total+flat,text:`[${r.faces}]+${flat}`};
 }
-function enemyDamage(e,crit){ // total of all of the enemy's hits (boss: two hits)
+function enemyDamage(e,crit){
   let tot=0, txt=[]; for(let i=0;i<enemyHits(e);i++){const h=enemyHit(e,crit); tot+=h.total; txt.push(h.text)}
   return {total:tot,text:txt.join(' + ')};
 }
@@ -396,7 +475,7 @@ function rollLoot(basic,elite,boss,type){
 }
 
 
-/* ---------- Rounds tab: roll it yourself, round by round ---------- */
+/* ---------- Rounds tab ---------- */
 function rf(){ if(!S.rf) S.rf={n:1,history:[],lines:[],sel:{}}; return S.rf }
 function rfAllies(){return [...S.allies].sort((a,b)=>((b.last||0)-(a.last||0))||((b.since||0)-(a.since||0)))}
 function rfCore(){return S.party.filter(c=>c.inParty)}
@@ -542,14 +621,14 @@ function renderRounds(){
     ${R.warn?`<div class="result" role="alert"><strong>Heads up:</strong> ${esc(R.warn.msg)} ${R.warn.pending?'<button data-rf="orderfirst">Play them first</button><button data-rf="ordernow">Play out of order</button>':''}<button data-rf="ordercancel">Dismiss</button></div>`:''}
     ${(()=>{const ck=rfChecks(); return ck.length?`<div class="result" style="margin-top:.5rem"><strong>Checks</strong>${ck.map(w=>`<div>${esc(w.m)} ${w.fix?`<button data-rf="${w.fix}">${esc(w.label)}</button>`:''}</div>`).join('')}</div>`:''})()}
     ${R.stop?`<div class="result" aria-live="polite">Auto stopped: ${esc(R.stop)}</div>`:''}
-    ${over&&R.result?`<div class="result" aria-live="polite" style="margin-top:.6rem"><strong>Fight over.</strong> ${esc(over)} Press Copy results and paste it to Claude.${/surrender/.test(over||'')&&!R.result.refused?' <button data-rf="refuse">Don’t accept surrender</button>':''}</div>`:''}
+    ${over&&R.result?`<div class="result" aria-live="polite" style="margin-top:.6rem"><strong>Fight over.</strong> ${esc(over)} Press Copy results and paste it into chat.${/surrender/.test(over||'')&&!R.result.refused?' <button data-rf="refuse">Don’t accept surrender</button>':''}</div>`:''}
     ${R.result?`<div style="margin-top:.6rem"><textarea id="rf-result-text" rows="9" style="width:100%;font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:.4rem" readonly>${esc(R.result.text)}</textarea>
       <div class="row"><button class="primary" data-rf="copy">Copy results</button>${R.result.rested?'':'<button data-rf="shortrest">Short rest (+25% HP)</button>'}${/surrender/.test(over||'')&&!R.result.refused?'<button data-rf="refuse">Don’t accept surrender</button>':''}${R.result.loot?`<label><input type="checkbox" id="rf-town"> Town takes half</label><button class="primary" data-rf="applyloot">Apply loot</button>`:''}</div></div>`:''}
   </div>
   <div class="rf-banner active">Round ${R.n}</div>
   <div class="rf-hist rf-scroll" id="rf-log">${logHtml}</div>
   <div class="two">
-    <div><h2 style="font-size:1.3rem;margin-bottom:.4rem">Core four</h2><div class="grid">${rfCore().filter(c=>rfActive(c.id)).map(rfRow).join('')}</div>
+    <div><h2 style="font-size:1.3rem;margin-bottom:.4rem">Active party</h2><div class="grid">${rfCore().filter(c=>rfActive(c.id)).map(rfRow).join('')}</div>
       ${rfAllies().some(c=>rfActive(c.id))?`<h2 style="font-size:1.3rem;margin:.8rem 0 .4rem">Allies</h2><div class="grid">${rfAllies().filter(c=>rfActive(c.id)).map(rfRow).join('')}</div>`:''}</div>
     <div><h2 style="font-size:1.3rem;margin-bottom:.4rem">Enemies</h2><div class="grid">${S.enemies.length?S.enemies.map(rfFoeCard).join(''):'<p class="muted">Add enemies above.</p>'}</div></div>
   </div>`;
@@ -705,7 +784,7 @@ function rfNewFight(){
   all().forEach(c=>{c.cds={}; c.used={}; c.statuses=[]}); commit();
 }
 
-/* ---------- automation (runs in your browser: no cost to Claude) ---------- */
+/* ---------- automation (runs in your browser) ---------- */
 let RF_UNDO=[];
 function rfSnap(){try{RF_UNDO.push(JSON.stringify({party:S.party,allies:S.allies,enemies:S.enemies,inv:S.inv,rf:S.rf,order:S.order,turn:S.turn})); if(RF_UNDO.length>80) RF_UNDO.shift()}catch(e){}}
 function rfShortRest(){const R=rf(); if(R.result&&R.result.rested){S.lastResult='Already rested after this fight.'; return commit()} rfSnap(); const out=[]; rfFighters().forEach(f=>{const b=hpOf(f), g=Math.floor(maxHP(f)/4); f.temp=0; rfDelta(f,g); f.cds={}; f.used={}; f.statuses=[]; out.push(f.name+' '+b+' → '+hpOf(f)+'/'+maxHP(f))}); const msg='Short rest (25% max HP, cooldowns reset): '+out.join(', ')+'.'; if(R.result){R.result.text+='\n'+msg; R.result.rested=true} S.lastResult=msg; log(msg); commit()}
@@ -736,7 +815,7 @@ function rfSlip(c){c.statuses=c.statuses.filter(x=>x.name!=='Vanished'); c.statu
 function rfShardMult(c,ab){ if(!c||c.name!=='Leon'||!ab) return 1; if(ab.kind==='heal') return 2; if(ab.kind==='burst') return 1.5; if(['solo','multi','sweep','add'].includes(ab.kind)||ab.n==='Comets') return 1.5; return 1 }
 function rfAutoShard(){ return !!(S.autoOpts&&S.autoOpts.shards)&&(S.inv.shards||0)>=6 }
 function rfHealBelow(){return ((S.autoOpts&&S.autoOpts.healBelow)||50)/100}
-function rfAutoUtility(c){ // true if the utility used the turn
+function rfAutoUtility(c){
   const R=rf(), foes=S.enemies.filter(e=>!e.down), fr=rfFighters().filter(f=>!f.down); const ready=n=>{const a=rfAbility(c,n); return a&&c.known[n]&&!(c.cds[n]>0)?a:null};
   const use=(a,extra)=>{const ti=rfTier(c,a)-1; c.cds[a.n]=a.cd; c.used['_rf_'+a.n]=true; return ti};
   let a;
@@ -763,7 +842,7 @@ function rfAutoUtility(c){ // true if the utility used the turn
 }
 function rfItemFree(){const R=rf(); return R.itemRound!==R.n}
 function rfItemMark(){const R=rf(); R.itemRound=R.n}
-function rfAutoHeal(c,tgt,kind){ // kind: potion | medkit | heal
+function rfAutoHeal(c,tgt,kind){
   if(kind==='potion'){ if(S.inv.potions<1||!rfItemFree()) return false; rfItemMark(); const r=rollExpr('4d6+2'); const amt=r.total+(tgt.healBonus||0); S.inv.potions--; rfDelta(tgt,amt); rfLine(`${c.name}: potion (brewed by Leon) → ${tgt.name} +${amt}`); return false }
   if(kind==='medkit'){ if(S.inv.medkits<1||!rfItemFree()) return false; rfItemMark(); let expr='1d6+2', extra=tgt.healBonus||0;
     if(c.name==='Leon'&&c.known['Field Medic']){expr=ABILITIES.Leon[0].t[c.known['Field Medic']-1].match(/\d+d\d+\+\d+/)[0]; extra+=2}
@@ -799,16 +878,13 @@ function rfPartyTurn(c){
   rfAutoStance(c);
   if(rfAllyHeal(c)) return;
   if(rfAutoUtility(c)) return;
-  // standing orders
   for(const rule of (rf().standing||[])){
     if(rule.who!==c.name) continue;
     const cand=rfFighters().filter(f=>hpOf(f)<maxHP(f)*rule.below/100&&(rule.act==='medkit'||!f.down));
     if(!cand.length) continue; const low=cand.reduce((a,b)=>hpOf(b)/maxHP(b)<hpOf(a)/maxHP(a)?b:a);
     if(rfAutoHeal(c,low,rule.act)) return;
   }
-  // Renn's Second Wind when low
   const sw=rfAbility(c,'Second Wind'); if(sw&&!c.used['Second Wind']&&hpOf(c)<maxHP(c)*.4){const r=rollExpr(sw.h[rfTier(c,sw)-1]); rfDelta(c,r.total); c.used['Second Wind']=true; rfLine(`${c.name}: Second Wind +${r.total}`)}
-  // pick an ability
   let ab=null; const stars=c.stars||{}; for(const a of rfMain(c)){ if(stars[a.n]&&c.known[a.n]&&!(c.cds[a.n]>0)&&!(a.once&&c.used[a.n])){ab=a;break} }
   if(!ab) for(const n of (RF_PRI[c.name]||[])){const a=rfAbility(c,n); if(a&&c.known[n]&&!(c.cds[n]>0)){ab=a;break}}
   const vanished=c.statuses.find(x=>x.name==='Vanished');
@@ -1163,7 +1239,80 @@ function renderSupplies(){
   </div></div>`;
 }
 function spGrouped(list){ const order=[]; const by={}; list.forEach(it=>{const g=it.group||'Other'; if(!by[g]){by[g]=[]; order.push(g)} by[g].push(it)}); return order.map(g=>`<h3 class="si-group" style="margin:.9rem 0 .2rem;font-size:1rem;opacity:.85">${esc(g)}</h3>`+by[g].map(it=>`<div class="si-item"><h3 class="si-name">${esc(it.name)}${it.from==='dryden'?drSvg():it.from==='tyr'?gwSvg():''}</h3><p class="si-desc">${esc(it.desc||'')}</p><button data-spdel="${S.special.indexOf(it)}" style="font-size:.8rem">Remove</button></div>`).join('')).join('') }
-let TABDOCS=null;
+const DEFAULT_DOCS={
+  chars:[
+    {t:'Anton Dryden (20) — Player Character',open:true,b:[
+      'Heir of Teyrn Ray Dryden and Lady Hazel of Evergreen. Human rogue (bow & daggers), 5\'8", muscular, lightly tan skin, short light-brown hair pushed forward, soft green eyes, pierced left ear, short neat beard. Wears his father\'s cobalt chrome ring (one large emerald, two small ones) on a cord around his neck.',
+      '- Masked (court & strangers): formal, alluring, measured ("Madam, with respect...").',
+      '- Unmasked (private, stressed, or with Tyr): brash, blunt, sassy, impatient. Threatens quietly and calmly.',
+      '- Beliefs: anti-religion, sides with elves and mages, hates the Grey Wardens (never calls himself a Warden or wears a Warden pendant). Grieves Ray deeply; hides tears behind a tough front.'
+    ]},
+    {t:'Tyr Baehr (21) — Personal Guard & Secret Lover',open:true,b:[
+      'Pronounced "Tier." 6\'4", built like a human wall, fair skin, black hair pushed back, blue eyes, thick beard. Street orphan taken in at 14 by Ray and raised by Renn.',
+      '- Voice & manner: deep voice, goofy, literal, earnest, socially awkward, completely devoted to Anton. Flirts shamelessly with undercooked jokes and bad pick-up lines; goes pink to the ears when praised.',
+      '- Warden pride: wears the Grey Warden pendant "for both of us" to earn a title and community so he can stand beside Anton publicly. Calls Anton "my love"; Anton calls him "my brave warrior" or "my brave knight."'
+    ]},
+    {t:'Leon Avalos (24) — Joins at Flemeth\'s Hut',open:false,b:[
+      'Flemeth\'s adopted son (replaces Morrigan; no pregnancy or dark ritual). Slim, pale, blonde hair in a small ponytail, light brown eyes, clean-shaven, gay.',
+      '- Magic & skills: casts with his hands, never a staff (Fire, Electricity, Plasma, and restorative healing). Collects Fade Shards from spirit-type enemies. Skilled cook and herbalist; brews 4d6+2 potions from 2 herbs at camp.',
+      '- Personality: sharp-tongued, deadpan, rude, scornful toward strangers and "Circle pets." Says "Mother" like it tastes bad. Deflects thanks and goes pink when moved.'
+    ]},
+    {t:'Renn Klaver (32) — Found in Redcliffe',open:false,b:[
+      'Tyr\'s older brother figure and mentor, dual-axe warrior, woodworker, and blacksmith. 6\'2", warm brown skin, dark brown hair swept back with a white front streak, full beard, grey eyes.',
+      '- Personality: kind, honorable, hopeless romantic, cries easily, nervous around magic. Crafts elaborate, blush-inducing puns. Secretly knows about Anton and Tyr (Tyr told him; Anton doesn\'t know yet).'
+    ]},
+    {t:'Ray & Hazel Dryden — Anton\'s Parents',open:false,b:[
+      '- Teyrn Ray Dryden: tall, broad, loud, warm, quick, funny, bossy, and affectionate. Took Tyr in at 14 as a ward/guard; does NOT know about Anton and Tyr.',
+      '- Lady Hazel Dryden: small, soft-looking, grey at her temples, sharp eyes, always cold in the evenings. Sweet, warm, brilliant strategist, and a deadly former archer. Does NOT know about Anton and Tyr.'
+    ]},
+    {t:'Key Figures & Allies',open:false,b:[
+      '- Duncan: Warden-Commander. Tall, older, dark skin, neat grey-shot beard, blue-and-silver griffon tabard. Came for Anton alone; dismissive of Tyr.',
+      '- Arl Rendon Howe: smooth, oily, thin smile, cruel; arrives under the black bear of Amaranthine.',
+      '- Bastian Holt: serious, decent Grey Warden of 12 years who survives Ostagar and tells recruits the truth about the Joining.',
+      '- Leliana: former Orlesian spy turned lay sister in Lothering; stays in Lothering as an informant sending notes by pigeon.'
+    ]}
+  ],
+  beats:[
+    {t:'Act I — Evergreen, Ostagar & Korcari Wilds',open:true,b:[
+      '1. Evergreen (Human Noble Origin): Duncan\'s visit in the main hall with Ray and Howe; Howe\'s betrayal; Ray\'s death in his study; escape to Ostagar while Hazel rides for Redcliffe.',
+      '2. Ostagar & Korcari Wilds: King Cailan\'s war camp, darkspawn blood & treaties, meeting Flemeth and Leon, the Joining, and the Tower of Ishal.',
+      '3. Flemeth\'s Hut: Rescue after Ostagar; Leon joins the party.'
+    ]},
+    {t:'Act II — Lothering & The Treaties (Spoiler-Free)',open:false,b:[
+      '- Lothering: Refugees on the Imperial Highway, Chantry informant Leliana.',
+      '- Redcliffe: Undead night sieges, Castle Redcliffe, Arl Eamon, and recruiting Renn.',
+      '- Broken Circle: The Circle Tower of Lake Calenhad.',
+      '- Nature of the Beast: The Dalish elves and werewolves of the Brecilian Forest.',
+      '- A Paragon of Her Kind: Dwarven succession and the Deep Roads of Orzammar.',
+      '- The Urn of Sacred Ashes: Denerim leads, Haven, and the Ruined Temple.'
+    ]},
+    {t:'Act III — The Landsmeet & Endgame (Spoiler-Free)',open:false,b:[
+      '- Denerim & The Landsmeet: Confronting Loghain and Howe; rallying Ferelden\'s nobles.',
+      '- The Battle of Denerim: Marching against the Blight and the Archdemon Urthemiel.'
+    ]}
+  ],
+  rules:[
+    {t:'Attacks, Damage & Cooldowns',open:true,b:[
+      '- Attack d20 (no AC): 1 miss, 2–7 (−2), 8–13 (+0), 14–19 (+2), 20 crit (doubles dice only).',
+      '- Weapon damage: die + tier + stat (STR sword/axe, DEX bow/dagger, WIS magic). Daggers and axes roll two dice.',
+      '- Cooldown N: unavailable for your next N rounds. A miss never triggers a cooldown. Resets after a rest.',
+      '- Leon\'s Heal and Heal Burst share a cooldown of 3 rounds.',
+      '- Bonus actions (keep your normal action): Fortify, Barrier, Mark Target, Second Wind, Vigorous Roar.',
+      '- Items: Potions are a free action; med kits take the whole turn. Max 1 potion or med kit per round across the whole party.'
+    ]},
+    {t:'Healing, Rests & Fade Shards',open:false,b:[
+      '- Med kit: 1d6+2 (Leon Field Medic T2: 2d6+4). Potion: 2d6+2 (Leon-brewed: 4d6+2). Tyr gets +2 on both; Leon adds +2 to healing given.',
+      '- Short rest: 25% max HP + reset cooldowns. Full night\'s sleep: full HP (consumes 1 ration). Leon brews 2 herbs into 1 potion at camp.',
+      '- Fade Shards: Drop from spirit enemies (1 Normal, 2 Elite, 2–4 Boss). Boosts one Leon spell (Heal x2, Heal Burst x1.5, Attack x1.5; Revive T2/T3 costs 3 shards).'
+    ]},
+    {t:'Travel, Loot & Tracker Conventions',open:false,b:[
+      '- Travel days: 2 events per day (at least 1 fight), drawn from the d20 travel table. Camp every night.',
+      '- Surrender: When the last enemy is a person at 25% HP or lower after all turns that round, pause for Anton to speak.',
+      '- Tracker groups: Special items use Family and gifts, Leads and evidence, Quest items, Leon\'s books, and Items to give later. Maps go in Renn\'s maps; display items go in Base storage.'
+    ]}
+  ]
+};
+let TABDOCS=DEFAULT_DOCS;
 const OPENDOCS={};
 function docHtml(key,title,intro){
   const secs=((TABDOCS||S.docs||{})[key])||[];
@@ -1182,15 +1331,71 @@ function resumeCard(){
   const sec=(S.story&&S.story.sections)||[]; const scene=(sec[0]&&sec[0].items&&sec[0].items[0])||'';
   const pcs=S.party.filter(c=>c.inParty).map(c=>`${c.name} ${hpOf(c)}/${maxHP(c)}`).join(', ');
   const v=S.inv||{}; const th=((sec[2]&&sec[2].items)||[]).map(x=>'- '+x).join('\n'); const last=(S.log||[]).slice(0,6).map(x=>'- '+x.m).join('\n');
-  return `RESUME CARD (The Grey Road)\nScene: ${scene}\nLevel ${S.level}. HP: ${pcs}.\nSupplies: ${v.coin||0} sov, ${v.potions||0} potions, ${v.medkits||0} med kits, ${v.rations||0} rations, ${v.shards||0} Fade Shards, ${v.herbs||0} herbs.\nOpen threads:\n${th}\nLast events:\n${last}\nCampaign log: https://claude.ai/artifact/2hLaTPha6Gn6nWevxexktR\nTracker: https://claude.ai/artifact/TsYk7114xhjgSE4GYxWkDG`
+  const sp=(S.special||[]).map(x=>x.name).join(', ')||'none';
+  return `RESUME CARD (The Grey Road)\nScene: ${scene}\nLevel ${S.level}. HP: ${pcs}.\nSupplies: ${v.coin||0} sov, ${v.potions||0} potions, ${v.medkits||0} med kits, ${v.rations||0} rations, ${v.shards||0} Fade Shards, ${v.herbs||0} herbs.\nSpecial items: ${sp}.\nOpen threads:\n${th||'- none'}\nLast events:\n${last||'- none'}`
 }
 async function qaCopy(txt){ try{ await navigator.clipboard.writeText(txt); return true }catch(e){ try{ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok }catch(e2){ return false } } }
 function qaRest(kind){
   const out=[]; S.party.filter(c=>c.inParty).forEach(c=>{const mx=maxHP(c), b=hpOf(c); c.hp=kind==='night'?mx:Math.min(mx,b+Math.floor(mx/4)); c.down=false; c.temp=0; c.cds={}; c.used={}; c.statuses=[]; out.push(`${c.name} ${b}→${c.hp}/${mx}`)});
   const msg=(kind==='night'?'Full night’s sleep: ':'Short rest: ')+out.join(', '); log(msg); S.lastResult=msg; commit(); qaMsg(msg)
 }
+function applyAiStorySync(raw){
+  const msgEl=document.getElementById('ai-sync-msg');
+  try{
+    const cleaned=raw.replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+    const d=JSON.parse(cleaned);
+    const changes=[];
+    S.story=S.story||{updated:'',sections:[{title:'Current scene',items:[]},{title:'Summary',items:[]},{title:'Open threads',items:[]}]};
+    S.story.updated=new Date().toLocaleDateString([],{month:'short',day:'numeric'});
+    if(d.scene){
+      let sc=S.story.sections.find(x=>/current scene/i.test(x.title||''));
+      if(!sc){sc={title:'Current scene',items:[]}; S.story.sections.unshift(sc)}
+      sc.items=[d.scene]; changes.push('scene updated');
+    }
+    if(d.summary){
+      let sm=S.story.sections.find(x=>/summary/i.test(x.title||''));
+      if(!sm){sm={title:'Summary',items:[]}; S.story.sections.push(sm)}
+      sm.items.push(d.summary); changes.push('summary added');
+    }
+    if(Array.isArray(d.threads)){
+      let th=S.story.sections.find(x=>/open thread/i.test(x.title||''));
+      if(!th){th={title:'Open threads',items:[]}; S.story.sections.push(th)}
+      d.threads.forEach(t=>{if(t&&!th.items.includes(t)){th.items.push(t); changes.push('thread: '+t)}});
+    }
+    if(Array.isArray(d.closeThreads)){
+      let th=S.story.sections.find(x=>/open thread/i.test(x.title||''));
+      if(th) d.closeThreads.forEach(ct=>{th.items=th.items.filter(x=>!x.toLowerCase().includes(ct.toLowerCase())); changes.push('closed thread: '+ct)});
+    }
+    if(Array.isArray(d.items)){
+      S.special=S.special||[];
+      d.items.forEach(it=>{if(it&&it.name){S.special.push({name:it.name,desc:it.desc||'',group:it.group||'Story',from:it.from||''}); changes.push('item: '+it.name)}});
+    }
+    if(Array.isArray(d.recruits)){
+      S.recruits=S.recruits||[];
+      d.recruits.forEach(r=>{if(r&&r.name){S.recruits.push(r); changes.push('recruit: '+r.name)}});
+    }
+    if(Array.isArray(d.maps)){
+      S.maps=S.maps||[];
+      d.maps.forEach(m=>{if(m&&m.name){S.maps.push({name:m.name,desc:m.desc||''}); changes.push('map: '+m.name)}});
+    }
+    if(d.supplies&&typeof d.supplies==='object'){
+      Object.entries(d.supplies).forEach(([k,v])=>{const n=+v||0; if(n){S.inv[k]=Math.max(0,(S.inv[k]||0)+n); changes.push(`${k} ${n>0?'+':''}${n}`)}});
+    }
+    if(d.level&&+d.level>S.level){S.level=+d.level; changes.push('level '+S.level)}
+    if(!changes.length){if(msgEl) msgEl.textContent='Valid JSON, but no fields changed.'; return}
+    log('AI Sync: '+changes.join(', '));
+    commit();
+    const afterMsg=document.getElementById('ai-sync-msg');
+    if(afterMsg) afterMsg.textContent='Applied: '+changes.join(' · ');
+  }catch(err){
+    if(msgEl) msgEl.textContent='Could not read that block—make sure you copied the full JSON from Gemini.';
+  }
+}
 document.addEventListener('click',async e=>{
   const b=e.target.closest('button'); if(!b) return;
+  if(b.id==='ai-sync-apply'){const box=document.getElementById('ai-sync-box'); if(box&&box.value.trim()) applyAiStorySync(box.value); return}
+  if(b.id==='gdrive-connect'){const inp=document.getElementById('gdrive-cid'); if(inp&&inp.value.trim()) DRIVE.setClientId(inp.value); DRIVE.connect(false); return}
+  if(b.id==='gdrive-sync'){DRIVE.push(); return}
   if(b.id==='qa-short') return qaRest('short');
   if(b.id==='qa-night') return qaRest('night');
   if(b.id==='qa-resume'){const ok=await qaCopy(resumeCard()); return qaMsg(ok?'Resume card copied. Paste it into a new chat.':'Could not copy on this device.')}
@@ -1203,7 +1408,13 @@ document.addEventListener('click',async e=>{
 function renderStory(){
   const st=S.story||{};
   const sec=(st.sections||[]);
-  document.getElementById('p-story').innerHTML=`<div class="action"><h2>Story so far</h2>
+  document.getElementById('p-story').innerHTML=`
+  <div class="action"><h2>Paste AI Story Update</h2>
+    <p class="muted" style="margin-top:0">Whenever Gemini outputs a <code>TRACKER_UPDATE</code> block after a story beat, paste it here to automatically update your scene, items, recruits, supplies, and open threads.</p>
+    <textarea id="ai-sync-box" rows="3" style="width:100%" placeholder='Paste JSON block from Gemini here...'></textarea>
+    <div class="row"><button class="primary" id="ai-sync-apply">Apply AI update</button><button id="qa-resume">Copy resume card for AI</button><span id="ai-sync-msg" class="muted"></span></div>
+  </div>
+  <div class="action"><h2>Story so far</h2>
     ${st.updated?`<p class="muted" style="margin-top:0">Updated ${esc(st.updated)}${st.doc?` · <a href="${esc(st.doc)}" target="_blank" rel="noopener" style="color:var(--warden)">Full campaign log</a>`:''}</p>`:''}
     ${sec.length?sec.map(s=>`<div class="ab"><h3 style="font-size:1.15rem;margin:.3rem 0">${esc(s.title)}</h3>${(s.items||[]).map((i,ix)=>`<p style="margin:.25rem 0">${esc(i)}${/open thread/i.test(s.title||'')?` <button data-thdel="${ix}" style="font-size:.78rem">Done</button>`:''}</p>`).join('')}</div>`).join(''):'<p class="muted">No summary yet.</p>'}
   </div>`;
@@ -1227,7 +1438,18 @@ function renderRecruits(){
 }
 
 function renderLog(){
-  document.getElementById('p-log').innerHTML=`<div class="row" style="margin-bottom:.6rem"><button class="danger" id="log-clear">Clear log</button><button class="danger" id="reset-all">Reset everything</button></div>
+  document.getElementById('p-log').innerHTML=`
+  <div class="action"><h2>Google Drive Cloud Sync</h2>
+    <p class="muted" style="margin-top:0">Saves <code>the-grey-road-save.json</code> in your Google Drive when opened from an authorized web URL. (Inside Canvas preview, use Download backup below.)</p>
+    <div class="row">
+      <label class="field" style="flex:1;min-width:240px">Google OAuth Client ID<input type="text" id="gdrive-cid" value="${esc(DRIVE.clientId())}" placeholder="123456789-abc.apps.googleusercontent.com"></label>
+      <button class="primary" id="gdrive-connect">${DRIVE.token?'Reconnect Drive':'Connect Google Drive'}</button>
+      ${DRIVE.token?'<button id="gdrive-sync">Sync now</button>':''}
+    </div>
+    <div id="gdrive-msg" class="muted" style="margin-top:.4rem">${DRIVE.token?'Connected to Google Drive.':''}</div>
+  </div>
+  <div class="row" style="margin-bottom:.6rem"><button id="save-export">Download backup (.json)</button><button id="save-import">Load backup</button><input type="file" id="save-file" accept=".json,application/json" style="display:none"><button class="danger" id="log-clear">Clear log</button><button class="danger" id="reset-all">Reset everything</button></div>
+  <div id="backup-msg" class="muted" style="margin-bottom:.5rem"></div>
   <div class="log">${S.log.length?S.log.map(l=>`<div><time>${new Date(l.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time>${esc(l.m)}</div>`).join(''):'<p class="muted">Rolls and results will show up here.</p>'}</div>`;
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -1299,29 +1521,37 @@ document.addEventListener('click',e=>{
     S.lastCheck=`${c.name} ${st} check: ${tot}  (${parts.join(', ')})`; log(S.lastCheck); return commit();
   }
   if(id==='log-clear'){S.log=[];return commit()}
+  if(id==='save-export'){
+    const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`the-grey-road-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+    const bm=document.getElementById('backup-msg'); if(bm) bm.textContent='Backup downloaded.';
+    return;
+  }
+  if(id==='save-import'){const f=document.getElementById('save-file'); if(f) f.click(); return}
   if(id==='reset-all'){if(confirm('Reset all characters, enemies, supplies and the log?')){S=defaults();commit()}}
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='save-file'&&t.files&&t.files[0]){
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const p=JSON.parse(r.result);
+        if(p&&p.party&&p.inv){S=p; commit(); const bm=document.getElementById('backup-msg'); if(bm) bm.textContent='Backup restored.'}
+        else {const bm=document.getElementById('backup-msg'); if(bm) bm.textContent='Invalid backup file.'}
+      }catch(err){const bm=document.getElementById('backup-msg'); if(bm) bm.textContent='Could not read JSON file.'}
+    };
+    r.readAsText(t.files[0]); t.value=''; return;
+  }
 });
 function val(id){const el=document.getElementById(id); return el?el.value:''}
 function chk(id){const el=document.getElementById(id); return el?el.checked:false}
 
 /* ---------- boot ---------- */
-try{const saved=localStorage.getItem('greyroad'); if(saved){const p=JSON.parse(saved); if(p&&p.v===1) S=p}}catch(e){}
+try{const saved=localStorage.getItem('greyroad'); if(saved){const p=JSON.parse(saved); if(p&&p.v===2) S=p}}catch(e){}
 render();
-(async()=>{
-  try{
-    if(!window.claude||!window.claude.use) return;
-    const [db,user]=await Promise.all([claude.use('db'),claude.use('user')]);
-    if(!db||!user) return;
-    const id=await user.id(); if(!id) return;
-    const ref=db.collection('data/users/'+id).doc('tracker');
-    const timer=setTimeout(()=>setSave('Saved on this device'),10000);
-    const snap=await ref.get(); clearTimeout(timer);
-    dbRef=ref;
-    if(snap.exists){const d=snap.data(); if(d&&d.state){const p=JSON.parse(d.state); if(p&&p.v===1){S=p; render()}}}
-    setSave('Saved to your account');
-    try{ const dsn=await db.collection('data/users/'+id).doc('tabdocs').get(); if(dsn.exists){const dd=dsn.data(); if(dd&&dd.docs){TABDOCS=JSON.parse(dd.docs); renderDocs()}} }catch(e){}
-  }catch(e){setSave('Saved on this device')}
-})();
 </script>
 </body>
 </html>
