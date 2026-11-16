@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Grey Road — Combat Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#1b1c1d; --surface:#252627; --surface2:#303233; --ink:#e9e9e6; --muted:#a3a5a1;
+  --line:#3e4042; --warden:#a9d6b8; --warden-ink:#14211a; --blood:#e07a72; --heal:#79c99a;
+  --ember:#e3b062; --hp-track:#34373a; --enemy:#e0a0a0;
+  --head:"IM Fell English SC", "Palatino Linotype", Palatino, Georgia, serif;
+  --body:"Alegreya Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--head);font-weight:400;margin:0}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:.35rem .7rem}
+button:hover{border-color:var(--warden)}
+button.primary{background:var(--warden);color:var(--warden-ink);border-color:var(--warden)}
+button.danger{color:var(--blood)}
+button:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--warden);outline-offset:2px}
+input,select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.3rem .45rem;max-width:100%}
+input[type=number]{width:4.5rem}
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:2px solid var(--warden);padding:.6rem 1rem}
+.bar-row{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.2rem;max-width:1100px;margin:0 auto}
+.brand{font-family:var(--head);font-size:1.6rem;letter-spacing:.02em}
+.brand small{display:block;font-family:var(--body);font-size:.8rem;color:var(--muted);letter-spacing:0}
+.meta{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:.95rem}
+.meta b{color:var(--ink)}
+.save{font-size:.8rem;color:var(--muted)}
+nav.tabs{display:flex;gap:.25rem;max-width:1100px;margin:.6rem auto 0;overflow-x:auto}
+nav.tabs button{border:none;background:none;border-bottom:3px solid transparent;border-radius:0;padding:.3rem .8rem;color:var(--muted)}
+nav.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--warden)}
+main{max-width:1100px;margin:0 auto;padding:1rem}
+section.panel{display:none}
+section.panel.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.75rem .85rem}
+.card.turn{border-color:var(--warden);box-shadow:inset 4px 0 0 var(--warden)}
+.card.down{opacity:.6}
+.card.foe h3{color:var(--enemy)}
+.card h3{font-size:1.25rem;display:flex;justify-content:space-between;gap:.5rem;align-items:baseline}
+.card h3 .tag{font-family:var(--body);font-size:.8rem;color:var(--muted)}
+.hp{margin:.45rem 0 .3rem}
+.hp-track{height:12px;background:var(--hp-track);border-radius:6px;overflow:hidden}
+.hp-fill{height:100%;background:var(--heal);transition:width .3s}
+.hp-fill.mid{background:var(--ember)} .hp-fill.low{background:var(--blood)}
+.hp-num{display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted);margin-top:.15rem}
+.hp-num b{color:var(--ink);font-size:1.05rem}
+.row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.4rem}
+.chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+.chip{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:.05rem .55rem;background:var(--surface2)}
+.chip.cd{border-color:var(--ember);color:var(--ember)}
+.chip.ready{border-color:var(--heal);color:var(--heal)}
+.chip.status{border-color:var(--warden);color:var(--warden)}
+.chip.burn{border-color:var(--blood);color:var(--blood)}
+.order{display:flex;gap:.35rem;flex-wrap:wrap;margin:.2rem 0 1rem}
+.order span{padding:.15rem .55rem;border-radius:6px;background:var(--surface2);font-size:.9rem}
+.order span.now{background:var(--warden);color:var(--warden-ink)}
+.order span.out{text-decoration:line-through;opacity:.55}
+.action{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:1rem}
+.action h2{font-size:1.3rem;margin-bottom:.4rem}
+.field{display:flex;flex-direction:column;gap:.15rem;font-size:.85rem;color:var(--muted)}
+.field > *{color:var(--ink)}
+.result{margin-top:.6rem;padding:.55rem .7rem;border-left:3px solid var(--warden);background:var(--surface2);border-radius:0 6px 6px 0;white-space:pre-wrap;font-size:.95rem}
+.log{max-height:60vh;overflow:auto;font-size:.92rem}
+.log div{padding:.3rem 0;border-bottom:1px solid var(--line)}
+.log time{color:var(--muted);font-size:.8rem;margin-right:.4rem}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+.tablewrap{overflow-x:auto}
+td,th{text-align:left;padding:.3rem .45rem;border-bottom:1px solid var(--line)}
+th{font-weight:500;color:var(--muted)}
+.ab{border-top:1px solid var(--line);padding:.4rem 0}
+.ab:first-child{border-top:none}
+.ab p{margin:.15rem 0 0;font-size:.88rem;color:var(--muted)}
+.muted{color:var(--muted)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}
+.big{font-family:var(--head);font-size:1.6rem}
+@media (prefers-reduced-motion: reduce){.hp-fill{transition:none}}
+
+.rf-banner{margin:1.1rem 0 .5rem;padding:.35rem .8rem;border-radius:6px;background:var(--surface2);border-left:4px solid var(--line);font-family:var(--head);font-size:1.25rem;letter-spacing:.03em}
+.rf-banner.active{background:var(--warden);color:var(--warden-ink);border-left-color:var(--warden)}
+.rf-hist{font-size:.9rem;color:var(--muted);padding:0 .3rem .2rem;white-space:pre-wrap}
+.rf-div{display:block;margin:.5rem 0 .15rem;font-family:var(--head);color:var(--ink);font-size:1rem;border-bottom:1px solid var(--line)}
+.rf-scroll{max-height:16rem;overflow-y:auto;border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem;margin:.2rem 0 .8rem;background:var(--surface)}
+.rf-histbox{max-height:16rem;overflow-y:auto;border:1px solid var(--line);border-radius:6px;padding:.2rem .5rem .4rem;margin:.2rem 0 .8rem}
+.rf-hpbox{display:flex;gap:.3rem;align-items:center;margin-top:.4rem}
+.rf-hpbox input{width:4rem}
+.rf-hpbox button{padding:.2rem .6rem;font-weight:700}
+.rf-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:1rem}
+.rf-box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;max-width:360px;width:100%}
+.rf-box h3{font-size:1.3rem;margin-bottom:.3rem}
+.rf-note{font-size:.88rem;color:var(--muted);margin:.35rem 0 0;white-space:pre-wrap}
+
+.warden-badge{display:inline-block;vertical-align:-4px;margin-left:.45rem;width:2.1rem;height:1.82rem;color:var(--warden)}
+.si-item{padding:.7rem 0;border-bottom:1px solid var(--line)}
+.si-item:last-child{border-bottom:0}
+.si-name{display:inline-block;margin:0 0 .35rem;padding:.15rem .7rem;font-family:var(--head);font-size:1.5rem;line-height:1.25;color:var(--ink);background:rgba(169,214,184,.2);border-left:4px solid var(--warden);border-radius:4px}
+.si-desc{margin:.2rem 0 0;font-size:1rem;line-height:1.45}
+.dryden-badge{display:inline-block;vertical-align:-7px;margin-left:.45rem;width:2.3rem;height:2.3rem;--dr-silver:#c9cdd2;--dr-grey:#3b4046;--dr-emerald:#1fb37a;--dr-emerald-dk:#0b6a47}
+.rc-card{border-left:4px solid var(--warden)}
+.rc-name{font-size:1.6rem!important;color:var(--warden);border-bottom:1px solid var(--line);padding-bottom:.25rem;margin-bottom:.4rem}
+.rc-status{display:inline-block;font-size:.82rem;font-weight:700;border:1px solid var(--heal);color:var(--heal);border-radius:999px;padding:.05rem .6rem;margin:.1rem 0 .4rem}
+.rc-row{display:grid;grid-template-columns:5.2rem 1fr;gap:.5rem;padding:.3rem 0;border-top:1px solid var(--line);font-size:.92rem}
+.rc-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:.15rem}
+.rc-val{color:var(--ink)}
+.rc-list{margin:.3rem 0 0 1.1rem;padding:0;font-size:.95rem;line-height:1.4}
+.rc-list li{margin:.18rem 0}
+.rc-count{font-size:.8rem;font-family:var(--body);color:var(--muted);margin-left:.4rem}
+.rc-group{grid-column:1/-1}
+.rc-members{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.6rem;margin-top:.5rem}
+.rc-member{border-top:1px solid var(--line);padding-top:.4rem}
+.rc-member h4{margin:.1rem 0 .2rem;font-size:1.1rem;color:var(--ink)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="gr-badge" viewBox="0 0 100 87.0"><path fill="currentColor" fill-rule="evenodd" d="M0.0 0.0L0.2 4.7 2.0 9.3 5.5 13.4 8.4 18.5 13.1 22.3 14.9 25.1 17.0 27.3 19.0 28.7 23.2 30.4 26.8 34.0 30.4 36.2 35.1 37.3 41.4 37.4 44.2 40.5 43.8 41.0 40.3 41.4 36.6 42.4 32.0 44.6 26.5 48.8 18.1 57.5 16.0 58.8 14.0 59.0 12.5 58.5 10.9 57.1 10.1 55.4 10.2 53.3 12.1 50.7 18.9 46.2 21.7 43.4 22.6 41.2 22.7 39.1 21.4 35.8 19.9 34.3 18.1 33.3 13.4 32.0 11.0 32.0 8.4 33.5 3.8 39.2 2.1 40.2 0.9 40.4 4.0 42.0 6.9 42.3 9.9 41.1 10.8 41.9 12.5 41.2 16.7 36.9 17.7 37.1 18.9 38.6 19.0 40.5 17.9 42.5 9.9 47.6 7.8 49.8 6.8 51.9 6.4 55.6 7.0 57.9 8.7 60.5 10.8 62.1 14.1 63.0 17.9 62.3 21.1 60.3 26.2 55.4 25.7 60.5 24.6 63.3 22.4 65.9 18.5 68.8 17.8 70.2 16.4 81.7 16.7 86.9 32.3 86.9 32.4 84.5 31.3 81.8 29.9 80.3 27.2 79.0 27.7 76.6 29.3 74.7 34.8 72.5 39.6 69.1 39.8 70.3 39.5 71.4 37.5 74.1 37.3 75.7 43.7 86.8 56.2 86.9 56.0 84.6 55.0 82.6 52.8 81.3 49.0 80.8 48.1 79.8 46.3 75.4 51.2 70.5 54.1 64.2 59.5 65.3 60.1 72.3 62.7 71.4 64.0 74.4 65.1 78.4 65.5 81.7 63.5 82.6 62.3 83.7 61.6 85.2 61.5 86.9 83.0 86.9 82.7 84.1 81.5 81.9 79.0 80.1 75.6 79.4 74.9 78.1 74.3 74.6 74.5 67.7 75.1 65.6 76.7 64.8 76.2 69.5 76.4 70.7 84.1 82.2 85.2 84.5 85.5 86.8 98.7 86.8 98.4 84.4 96.9 82.2 94.6 81.2 91.2 81.0 90.1 80.2 88.8 76.5 86.8 67.2 87.1 62.2 89.5 51.5 90.0 50.8 92.5 53.1 93.6 47.2 93.6 43.3 93.0 39.5 91.9 36.1 94.3 35.1 91.5 32.6 88.0 28.4 87.4 27.1 87.2 25.2 88.3 23.4 90.8 22.4 92.6 22.6 93.9 23.3 94.9 24.3 95.9 26.3 97.8 24.5 99.7 20.6 99.9 17.4 99.0 14.8 97.1 12.6 91.9 10.0 90.0 7.4 87.5 5.8 84.1 5.0 76.2 5.0 73.3 4.6 70.2 3.6 64.4 0.6 63.8 3.6 64.1 7.4 65.1 9.9 67.1 12.5 64.6 16.4 62.4 21.6 62.2 23.9 64.0 24.1 62.8 29.0 61.6 30.7 60.4 29.3 59.6 26.9 59.8 17.8 59.0 14.0 56.7 9.9 54.4 7.7 51.9 6.2 48.5 5.1 45.1 4.6 20.5 4.6 11.4 4.1 5.1 2.7ZM46.7 37.4L51.0 37.6 54.3 39.2 52.4 39.6 50.1 39.5 48.4 38.9ZM29.3 30.8L37.4 30.8 39.7 33.5 33.4 33.3 31.2 32.4ZM42.4 31.0L43.7 30.6 46.1 30.6 47.5 31.0 48.9 31.8 50.6 33.8 45.3 33.2 43.3 32.1ZM38.0 23.7L42.3 23.4 46.0 24.1 48.4 25.8 48.9 27.6 41.5 26.3 40.0 25.5ZM36.0 26.7L35.2 27.0 23.9 26.7 21.0 25.5 18.6 23.6 32.7 23.4 34.1 24.0ZM34.6 16.1L42.0 16.1 45.6 16.8 47.7 18.5 48.5 21.4 45.4 20.3 38.4 19.2 35.9 17.8ZM10.9 15.6L18.1 16.2 30.2 16.2 32.5 19.6 26.5 20.1 17.8 19.6 13.5 18.1ZM86.1 18.7L89.6 14.4 90.6 13.9 92.0 13.9 93.5 14.5 95.3 16.1 96.2 17.8 96.3 19.7 95.9 20.1 93.9 19.0 90.9 18.4ZM32.0 8.5L46.2 8.3 49.7 9.1 52.1 10.4 54.3 12.7 55.9 16.1 56.2 17.8 56.0 27.2 56.7 30.0 58.1 32.6 60.1 34.7 62.2 36.1 68.1 38.5 71.8 40.5 74.7 43.1 75.8 44.6 77.3 48.3 77.4 52.6 76.6 55.4 72.6 61.9 71.2 65.2 70.7 68.8 70.7 73.7 71.3 78.2 72.4 81.1 73.8 82.2 76.9 82.7 78.4 84.0 68.5 83.9 69.1 81.5 68.8 78.4 65.6 67.0 63.3 67.4 63.3 56.5 62.7 54.4 61.3 52.1 60.0 58.3 58.3 61.4 52.4 59.8 45.4 59.2 44.9 53.8 44.5 53.7 41.1 60.6 37.7 65.4 33.2 69.2 27.1 71.7 24.9 73.9 23.3 81.1 27.4 82.7 28.5 83.8 19.9 83.8 21.3 71.5 22.3 70.3 25.9 67.6 28.0 64.7 29.3 61.0 30.3 53.7 31.4 51.2 32.8 49.2 35.5 47.0 39.3 45.3 54.9 43.0 62.3 40.6 58.0 37.6 55.8 35.3 54.1 32.5 52.6 27.7 51.9 19.7 51.3 17.7 49.7 15.3 47.8 13.8 45.5 12.9 39.1 12.3 36.0 11.6 33.5 10.2ZM67.9 6.6L71.3 7.8 74.8 8.5 85.1 8.8 86.9 9.6 88.5 11.4 87.4 12.2 85.9 12.2 83.3 11.3 78.6 11.3 79.4 12.5 80.5 12.8 82.4 14.5 85.5 15.4 80.5 20.4 79.0 23.6 84.2 22.1 83.5 24.9 83.7 27.8 88.8 38.1 89.9 42.3 89.8 44.9 87.0 42.7 86.6 47.5 85.3 51.6 83.1 55.2 80.1 57.9 81.3 50.2 80.8 46.2 79.3 42.6 77.2 39.9 75.2 38.2 65.3 33.1 69.6 19.5 67.2 19.7 67.1 19.4 69.9 15.0 73.2 12.1 70.6 10.8 69.1 9.5 68.1 7.9ZM4.4 6.3L13.9 8.0 27.2 8.2 30.4 12.3 18.8 12.6 12.5 12.1 10.0 11.3 7.5 9.9 5.9 8.5Z"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="dr-crest" viewBox="225 225 625 625"><path fill="var(--warden)" fill-rule="evenodd" d="M541.7 745.3L518.0 791.0 518.7 791.7 530.7 795.7 540.7 799.7 543.3 799.7 565.3 791.7 566.0 790.7 542.7 745.7ZM648.0 587.3L648.3 588.3 657.7 597.7 673.7 611.3 682.0 617.3 689.3 621.7 698.0 625.0 704.7 625.3 709.3 624.3 716.3 621.7 727.7 614.7 735.3 607.7 735.0 607.0 729.3 607.0 724.3 606.0 716.7 603.0 694.3 591.0 663.3 573.0 661.7 573.3ZM436.0 587.7L422.3 573.3 420.7 573.0 395.7 587.7 365.3 604.0 359.7 606.0 354.7 607.0 349.0 607.0 348.7 608.0 360.0 617.3 367.7 621.7 375.7 624.7 379.0 625.3 384.3 625.3 387.3 624.7 397.7 620.0 410.0 611.7 422.0 601.7ZM667.7 559.0L669.0 560.0 677.7 562.7 679.3 563.7 680.7 563.7 682.3 564.7 695.3 568.7 705.7 572.7 707.0 572.7 708.7 573.7 729.7 580.3 742.0 582.7 755.3 582.7 764.3 580.7 770.3 578.7 778.3 574.7 786.3 569.3 797.0 560.7 807.3 550.3 806.7 550.0 804.0 551.0 798.0 552.0 788.3 552.7 763.0 552.7 733.0 550.0 728.0 549.0 723.0 549.0 692.7 545.0 689.3 545.0 685.0 544.0 673.0 543.0 672.3 543.7 671.0 550.7ZM411.7 543.3L410.7 542.7 387.0 546.0 349.7 550.0 349.0 551.0 349.3 581.0 350.0 581.3 360.3 578.7 416.3 559.3 412.7 549.3ZM349.0 495.7L349.3 524.3 404.3 525.7 412.7 525.3 413.7 517.3 415.7 510.3 414.7 509.7 401.3 507.0 394.3 505.0 392.3 505.0 390.0 504.0 387.7 504.0 385.3 503.0 370.3 500.0 351.3 495.3ZM831.7 464.3L830.7 464.3 824.0 469.0 814.3 474.0 807.0 477.0 794.7 481.0 753.7 491.0 725.7 497.0 723.3 498.0 721.3 498.0 718.7 499.0 712.3 500.0 710.0 501.0 708.0 501.0 705.3 502.0 699.0 503.0 696.3 504.0 668.7 510.0 668.3 511.0 669.0 512.0 671.0 521.0 671.0 524.7 672.0 525.7 742.0 524.3 748.0 523.7 796.7 521.7 807.0 519.7 814.7 515.7 820.3 510.3 823.7 505.7 826.7 499.7 830.7 485.7 831.7 477.7ZM349.3 435.7L349.0 469.7 349.7 470.7 403.7 488.7 405.0 488.7 422.0 494.3 423.3 494.0 428.3 480.7 427.7 478.3 425.3 476.0 403.3 465.0 352.7 437.0ZM848.3 368.3L848.0 368.0 828.7 382.3 804.0 398.7 762.3 423.0 704.7 454.0 657.3 477.0 656.0 479.0 656.0 482.0 657.0 483.3 660.7 493.7 662.0 494.3 679.0 488.7 680.3 488.7 726.0 473.7 727.7 472.7 754.3 463.7 806.0 442.7 814.3 438.7 821.7 434.3 829.7 427.0 833.0 422.7 837.7 415.0 840.7 408.3 843.7 400.0 846.7 387.0 848.3 374.0ZM665.3 370.0L663.0 369.0 660.0 368.7 654.0 369.0 646.3 371.3 643.0 373.0 641.7 373.0 636.7 370.0 631.0 368.0 624.3 367.0 616.3 367.0 603.7 369.0 591.7 373.0 576.3 380.3 567.7 385.3 547.7 399.3 537.3 408.0 528.0 417.3 522.7 423.3 517.0 431.3 515.7 432.3 506.3 423.7 491.7 413.0 476.0 403.7 454.3 393.0 453.3 393.0 452.3 391.7 453.3 389.7 457.0 386.0 461.0 383.7 464.7 382.7 471.7 383.0 477.0 384.7 488.0 390.0 503.7 399.0 514.7 406.3 516.0 406.3 527.7 394.3 527.3 393.0 511.7 383.0 500.0 376.7 486.7 371.0 475.7 368.0 468.3 367.0 459.3 367.0 453.3 368.0 447.3 370.0 442.3 373.0 441.0 373.0 437.0 371.0 430.0 369.0 421.0 369.0 418.7 370.0 415.7 372.3 413.0 376.3 410.0 385.0 409.3 393.7 410.0 397.3 412.0 401.7 413.0 401.0 414.0 398.3 416.0 396.0 419.3 394.7 421.3 395.0 425.7 396.7 456.0 413.7 486.7 432.0 492.0 437.0 498.0 444.7 503.0 454.7 505.0 462.7 505.3 472.0 504.0 480.7 501.0 488.7 494.7 500.7 483.0 516.7 477.7 525.7 476.3 530.3 476.3 535.0 477.0 537.7 481.0 543.7 487.3 549.3 542.0 593.3 569.0 572.0 601.0 545.7 605.7 540.3 607.7 535.3 607.7 530.0 606.7 526.3 604.7 522.3 589.0 500.0 583.7 490.0 580.7 482.7 578.7 473.7 578.7 465.0 580.7 456.0 584.7 447.0 590.0 439.3 597.0 432.3 630.3 412.3 660.3 395.7 666.0 395.0 668.0 396.0 670.0 398.3 671.0 401.0 672.0 401.7 673.7 398.7 674.7 394.7 674.7 389.0 672.7 380.0 670.7 375.7 668.7 372.7ZM622.7 383.7L628.0 387.0 631.3 390.7 631.7 392.0 605.0 405.0 592.3 412.7 578.0 423.3 570.0 431.0 564.0 438.3 559.3 446.3 557.0 452.7 556.0 458.3 556.0 471.3 558.0 485.0 560.0 492.0 565.0 504.0 571.0 514.3 578.7 525.0 580.0 528.3 580.0 530.3 579.0 533.3 574.0 538.7 542.0 566.0 509.0 537.7 505.3 533.7 504.0 530.0 505.0 525.7 512.7 515.3 518.0 506.7 521.7 499.3 524.7 491.3 527.7 477.7 528.3 467.3 528.0 456.7 530.7 448.3 537.3 437.7 544.0 429.7 557.3 416.7 576.0 402.0 585.3 395.7 594.7 390.3 606.7 384.7 614.0 382.7 618.7 382.7ZM639.3 302.7L639.3 323.3 640.0 324.0 748.0 324.0 751.3 325.0 753.3 327.0 754.7 330.0 755.0 332.3 756.3 332.7 763.7 327.7 769.7 321.7 772.7 316.7 772.3 315.3 769.3 311.3 763.7 306.3 757.3 303.3 751.7 302.0 639.7 302.0ZM839.7 278.0L838.3 279.0 837.0 281.3 828.0 292.3 809.3 312.0 781.0 338.7 755.3 359.7 734.3 375.0 705.0 394.7 669.7 416.7 624.7 442.3 618.3 446.7 614.0 450.7 610.0 456.0 607.3 462.7 606.3 469.7 607.0 475.7 608.3 480.3 610.7 485.3 619.0 498.7 631.0 521.3 632.3 527.0 632.3 533.3 630.0 541.0 625.7 548.0 619.0 554.7 542.7 615.7 541.3 615.7 465.3 555.0 459.0 548.7 456.0 544.7 453.3 539.3 451.7 533.7 451.7 526.0 452.7 522.3 462.0 504.0 474.3 483.7 476.3 478.7 477.3 474.3 477.7 468.0 476.7 462.3 474.7 457.3 470.3 451.0 462.0 444.0 433.0 427.7 402.3 409.3 367.3 387.0 350.0 375.0 349.0 375.3 349.0 410.0 351.3 412.0 383.0 430.7 432.0 458.3 437.7 462.7 441.3 466.7 444.0 471.0 445.0 474.3 445.0 478.0 444.0 482.3 438.0 497.0 427.7 516.7 425.0 526.3 425.0 539.7 427.0 547.7 430.0 554.3 436.0 563.0 441.7 568.7 514.3 628.7 532.3 644.7 541.7 654.3 542.3 654.3 548.7 647.7 568.0 630.3 600.0 603.3 641.7 569.3 648.0 563.0 653.3 555.7 656.7 548.7 658.7 541.7 659.3 537.0 659.3 528.7 656.7 517.3 646.7 498.3 641.7 487.0 639.7 481.0 639.0 474.7 640.7 469.7 645.7 463.3 651.3 458.7 665.0 451.3 716.3 421.7 783.3 380.7 801.3 368.3 811.7 359.7 821.7 347.3 826.3 339.3 831.7 327.3 834.7 318.3 837.7 305.3 839.7 289.7ZM244.3 278.0L244.0 283.3 245.0 296.7 248.0 313.0 253.0 329.0 259.3 342.3 267.0 353.7 276.7 363.7 287.3 371.7 306.7 384.7 306.7 410.0 305.3 410.3 285.7 401.0 270.0 392.7 246.7 377.0 232.0 366.0 231.7 366.3 233.0 373.3 236.0 384.3 237.0 386.3 237.0 388.0 243.0 405.3 249.0 418.7 255.3 428.7 261.0 434.0 269.3 438.7 282.7 445.0 304.7 453.7 306.7 455.3 306.7 484.0 306.0 484.7 301.3 484.0 299.0 483.0 289.7 481.0 277.0 477.0 263.0 470.7 253.3 464.3 252.3 464.3 252.3 477.0 254.0 489.0 256.3 497.0 261.0 506.7 264.0 510.7 267.7 514.3 271.3 517.0 280.3 520.7 288.0 521.7 305.7 522.7 306.7 523.3 306.7 552.0 306.0 552.7 295.0 552.7 286.3 552.0 278.3 550.3 276.7 550.7 291.3 564.3 306.7 575.7 306.7 618.7 307.3 629.7 310.3 651.7 313.0 664.3 315.0 670.3 315.0 672.0 318.0 680.0 318.0 681.3 324.3 697.3 333.7 715.3 343.7 730.7 360.7 751.0 372.7 762.7 391.3 778.0 413.0 792.7 431.7 803.3 454.3 814.7 474.7 823.7 510.7 837.7 538.0 847.0 546.0 847.0 562.0 841.7 563.7 840.7 565.0 840.7 607.0 824.7 634.0 812.7 657.3 800.7 677.3 788.7 698.3 773.7 715.7 758.7 731.7 741.7 742.7 727.3 752.7 711.3 762.7 690.3 767.7 676.3 770.3 667.0 774.7 646.3 777.3 619.3 777.0 595.7 766.0 600.0 761.3 601.0 755.7 601.3 755.0 602.0 755.0 622.0 754.0 633.3 751.0 652.0 747.0 667.7 742.0 681.7 736.0 695.0 725.7 712.7 719.7 721.0 716.0 725.0 707.0 725.3 692.7 724.0 675.0 720.0 660.3 715.0 638.3 705.0 620.7 694.7 604.3 682.7 590.7 670.0 583.0 661.0 581.0 657.7 579.3 656.3 568.7 670.0 568.3 671.3 579.3 687.7 590.7 701.0 606.7 716.3 618.0 725.3 627.3 731.7 647.3 743.7 667.7 753.7 678.0 757.7 679.7 759.0 679.7 759.7 667.7 768.3 650.3 779.0 649.0 779.0 636.0 770.7 621.7 760.0 612.3 752.0 600.0 740.0 591.0 730.0 580.3 716.7 564.7 695.0 557.7 684.3 556.0 683.3 544.0 694.7 544.0 696.0 551.0 711.3 564.0 736.7 571.0 748.3 579.3 760.7 592.7 777.0 607.0 791.7 612.7 796.7 612.7 797.7 596.3 805.0 576.0 813.0 542.0 825.0 497.7 809.0 473.7 799.0 471.3 797.3 471.7 796.3 487.7 781.0 503.3 762.3 514.3 746.3 529.3 720.0 541.3 695.7 541.3 694.7 529.3 683.3 528.0 683.7 511.7 707.0 500.3 721.7 487.0 737.0 475.0 749.0 464.0 758.7 449.0 770.0 435.7 778.7 433.7 779.0 424.7 773.7 411.3 765.0 404.3 759.7 405.3 758.0 425.0 749.7 440.3 741.7 452.7 734.3 465.0 726.0 477.0 716.7 494.7 699.7 506.0 686.0 515.7 671.3 515.0 669.3 504.7 656.3 503.3 657.3 495.0 668.3 487.0 676.3 476.0 685.7 458.0 698.0 439.7 708.0 418.3 717.0 409.0 720.0 396.7 723.0 386.7 724.7 377.0 725.3 368.0 725.0 366.0 723.0 360.7 716.0 351.0 700.7 341.7 681.0 334.7 659.3 331.7 645.0 329.7 630.3 329.0 620.3 328.7 596.0 329.0 332.0 330.7 327.0 333.3 324.7 335.7 324.0 444.3 324.0 444.7 302.3 332.0 302.0 327.7 303.0 321.0 306.0 315.0 311.0 311.3 316.0 308.0 323.7 307.0 328.3 306.7 340.0 305.7 340.7 285.0 322.0 264.0 301.0 254.7 290.7 245.7 279.0ZM541.7 233.3L511.7 281.7 511.7 283.0 517.0 290.3 522.0 301.7 523.7 310.0 523.7 318.7 522.0 324.3 519.7 328.0 515.3 332.0 511.3 334.0 506.3 335.0 502.3 335.0 498.0 334.0 494.3 332.0 490.7 328.0 489.0 324.7 488.3 321.7 488.7 315.7 490.0 312.3 494.7 307.0 494.7 306.0 466.3 264.0 464.0 261.3 463.7 340.0 464.0 341.3 464.7 341.7 467.3 341.7 482.0 344.7 503.0 351.7 527.0 363.0 541.3 371.3 542.7 371.3 557.0 363.0 583.7 350.7 602.3 344.7 620.0 341.3 620.3 261.7 619.7 261.7 618.3 263.0 589.3 306.3 589.3 307.0 593.7 311.7 595.3 315.7 595.7 322.3 593.7 327.7 589.7 332.0 586.0 334.0 581.3 335.0 577.3 335.0 572.7 334.0 567.3 331.0 564.0 327.7 562.0 324.3 560.3 317.7 560.7 307.3 562.7 299.7 567.0 290.3 572.3 283.0 572.3 281.3 545.7 239.0 543.0 234.0Z"/></symbol></svg>
+<header class="bar">
+  <div class="bar-row">
+    <div class="brand">The Grey Road<small>Combat tracker</small></div>
+    <div class="meta">
+      <span>Party level <b id="m-level"></b></span>
+      <span>Round <b id="m-round"></b></span>
+      <span id="m-turn"></span>
+      <span class="save" id="m-save">Saved on this device</span>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="rounds" aria-selected="true">Battle</button>
+    <button role="tab" data-tab="party" aria-selected="false">Party</button>
+    <button role="tab" data-tab="supplies" aria-selected="false">Supplies &amp; loot</button>
+    <button role="tab" data-tab="story" aria-selected="false">Story</button>
+    <button role="tab" data-tab="recruits" aria-selected="false">Recruits</button>
+    <button role="tab" data-tab="chars" aria-selected="false">Characters</button>
+    <button role="tab" data-tab="beats" aria-selected="false">Story beats</button>
+    <button role="tab" data-tab="log" aria-selected="false">Log</button>
+    <button role="tab" data-tab="rules" aria-selected="false">Rules</button>
+  </nav>
+</header>
+<main>
+  <section class="panel on" id="p-rounds"></section>
+  <section class="panel" id="p-party"></section>
+  <section class="panel" id="p-supplies"></section>
+  <section class="panel" id="p-story"></section>
+  <section class="panel" id="p-recruits"></section>
+  <section class="panel" id="p-chars"></section>
+  <section class="panel" id="p-beats"></section>
+  <section class="panel" id="p-log"></section>
+  <section class="panel" id="p-rules"></section>
+</main>
+
+<script>
+/* ---------- dice ---------- */
+const rnd = n => Math.floor(Math.random()*n)+1;
+// parse "2d6+1d4+3" -> {terms:[{n,s}], flat}
+function parseDice(expr){
+  const out={terms:[],flat:0}; if(!expr) return out;
+  expr.replace(/\s/g,'').replace(/-/g,'+-').split('+').filter(Boolean).forEach(t=>{
+    const m=t.match(/^(-?)(\d*)d(\d+)$/i);
+    if(m){out.terms.push({n:(+(m[2]||1))*(m[1]?-1:1),s:+m[3]});}
+    else if(!isNaN(+t)) out.flat+=+t;
+  });
+  return out;
+}
+function rollExpr(expr,crit=false){
+  const p=parseDice(expr); let dice=0; const faces=[];
+  p.terms.forEach(t=>{const k=Math.abs(t.n);for(let i=0;i<k;i++){const r=rnd(t.s);faces.push(`d${t.s}:${r}`);dice+=r*Math.sign(t.n)}});
+  if(crit) dice*=2;
+  return {total:dice+p.flat,dice,flat:p.flat,faces};
+}
+function attackTable(r){
+  if(r===1) return {mod:null,label:'Miss'};
+  if(r<=7) return {mod:-2,label:'−2'};
+  if(r<=13) return {mod:0,label:'+0'};
+  if(r<=19) return {mod:2,label:'+2'};
+  return {mod:0,label:'Critical (dice ×2)',crit:true};
+}
+
+/* ---------- data ---------- */
+const ABILITIES={
+ Anton:[
+  {n:'Royal Charm',cd:0,kind:'passive',t:['+2 on persuasion, intimidation, deception','+3 on those rolls','+4 on those rolls']},
+  {n:'Assassinate',cd:0,kind:'passive',t:['First arrow always has advantage','First arrow +d4','First arrow always crits']},
+  {n:'Shadows',cd:0,kind:'passive',t:['Draws less attention in combat','+d4 to sneak attempts','+d8 to sneak attempts']},
+  {n:'Triple Arrow',cd:4,kind:'multi',t:['3 arrows at 75% (round up); can split targets','+1 flat to each arrow','Arrows at 100%']},
+  {n:'Exploding Shot',cd:3,kind:'add',d:['1d8','2d6','3d6'],splash:['1d6','1d6+2','2d6'],t:['+d8; nearby take d6 splash','+2d6; splash d6+2','+3d6; splash 2d6']},
+  {n:'Pyro Shot',cd:3,kind:'add',d:['1d6','1d8','2d6'],burn:['1d4','1d6','1d6+2'],burnTurns:3,t:['+d6; Burn d4 for 3 turns','+d8; Burn d6 for 3 turns','+2d6; Burn d6+2 for 3 turns']},
+  {n:'Artemis’s Wrath',cd:4,kind:'add',d:['1d6+1d4','1d8+1d6','2d10'],t:['+d6 +d4','+d8 +d6','+2d10']},
+  {n:'Mark Target',cd:3,kind:'mark',t:['Allies get +2 against one enemy until Anton’s next turn','+2, and the first ally hit adds +1d4 damage','+3, and the first ally hit adds +1d6 damage']},
+  {n:'Vanish',cd:4,kind:'vanish',t:['Smoke bomb: enemies drop all aggro on Anton for 1 round; his next attack has advantage','2 rounds of no aggro and advantage','2 rounds, and enemies are blinded (−2 to hit) for a round']},
+  {n:'Litany of Adralla',cd:2,kind:'litany',t:['Bonus action: reciting the Litany dazes every spirit-type enemy except a boss for a round (they lose their next turn)','Bonus action: same effect','Bonus action: same effect']},
+ ],
+ Tyr:[
+  {n:'Counterstrike',cd:0,kind:'passive',t:['Enemy melee roll of 1–3: hits back for half of 1d8+3 (round up)','Enemy melee roll of 1–4','Enemy melee roll of 1–5']},
+  {n:'Titan Strike',cd:3,kind:'add',two:[['1d4','1d6'],['1d4+2','1d6+2'],['1d6+2','1d8+2']],d:['1d4+1d6','1d4+2+1d6+2','1d6+2+1d8+2'],t:['Shield +d4, then sword +d6','+d4+2; +d6+2','+d6+2; +d8+2']},
+  {n:'Shield Bash',cd:3,kind:'add',d:['1d4+3','1d6+5','1d6+6'],selfHeal:[0,0,.5],t:['+d4+3','+d6+5','+d6+6; Tyr heals half the damage dealt']},
+  {n:'Fortify',cd:4,kind:'buff',pct:[25,30,35],t:['Free action. 25% less damage for 2 rounds','30% less','35% less']},
+  {n:'Charging Bull',cd:3,kind:'add',d:['1d6+2','1d6+2','2d6+2'],adv:[false,true,true],t:['Charge, +1d6+2','Now has advantage. The target focuses Tyr','+2d6+2']},
+  {n:'Spiky Shield',cd:3,kind:'add',reprisal:[6,9,12],d:['1d6+2','1d8+3','2d6+4'],t:['Heavy sword strike +1d6+2, plus the damage Tyr took since his last turn (max 6)','+1d8+3, bonus max 9','+2d6+4, bonus max 12']},
+  {n:'Warden’s Roar',cd:4,kind:'roar',reduce:[0,10,20],t:['All enemies target Tyr next round','Also Tyr takes 10% less damage that round','Tyr takes 20% less']},
+  {n:'Cannonball',cd:4,kind:'add',d:['1d6','1d6+2','2d6'],splash:['1d4','1d4+2','1d6'],t:['+d6 damage; nearby enemies take d4 splash','+d6+2 damage; nearby enemies take d4+2 splash','+2d6 damage; nearby enemies take d6 splash']},
+ ],
+ Renn:[
+  {n:'Counterstrike',cd:0,kind:'passive',t:['Enemy melee roll of 1–3: hits back for half of 1d8+3 (round up)','Enemy melee roll of 1–4','Enemy melee roll of 1–5']},
+  {n:'Fury',cd:0,kind:'passive',d:['1d6+2','1d6+3','1d6+4'],t:['Killing blow triggers a d6+2 attack on another enemy, once per turn','d6+3','d6+4']},
+  {n:'Sabretooth',cd:3,kind:'add',d:['1d6+1','2d6+3','2d6+5'],selfHeal:[.5,.5,.5],t:['+1d6+1; Renn heals half','+2d6+3; heals half','+2d6+5; heals half']},
+  {n:'Dragon Strike',cd:4,kind:'multi',hits:[4,4,5],each:['1d6','1d6+2','1d6+3'],t:['4 strikes, 1d6 each','4 strikes, 1d6+2 each','5 strikes, 1d6+3 each']},
+  {n:'Second Wind',cd:0,kind:'selfheal',once:true,h:['1d8+2','1d8+4','1d10+6'],t:['Bonus action, once per fight: heal 1d8+2','Bonus action: heal 1d8+4','Bonus action: heal 1d10+6']},
+  {n:'Guillotine',cd:3,kind:'add',d:['2d4','2d4','2d6'],exec:[2,3,3],t:['+2d4; kills if enemy is under 2 HP','Under 3 HP','+2d6; under 3 HP']},
+  {n:'Thor’s Anvil',cd:4,kind:'add',two:[['1d6','1d6'],['1d6+2','1d6+2'],['1d8+4','1d8+4']],d:['1d6+1d6','1d6+2+1d6+2','1d8+4+1d8+4'],t:['Thrown axe +d6, slash +d6','Lightning: +d6+2; +d6+2','+d8+4; +d8+4']},
+  {n:'Vigorous Roar',cd:4,kind:'hymn',atk:[2,3,3],dmg:['','1','1d4'],t:['Bonus action: allies get +2 to attack for a round','Bonus action: +3 to attack and +1 damage','Bonus action: +3 to attack and +d4 damage']},
+  {n:'Whirlwind',cd:4,kind:'sweep',d:['1d6+1','1d6+3','1d8+4'],t:['Swing at every adjacent enemy: d6+1 each','d6+3 each','d8+4 each']},
+ ],
+ Leon:[
+  {n:'Field Medic',cd:0,kind:'passive',t:['Med kits heal 2d6+2, stop bleeding and minor poison','2d6+4','2d8+6']},
+  {n:'Heal',cd:3,kind:'heal',h:['1d6+4','2d6+4','2d8+6'],t:['1d6+4 to one ally','2d6+4','2d8+6']},
+  {n:'Heal Burst',cd:3,kind:'burst',h:['1d6+2','2d6+2','2d6+5'],t:['Every ally heals d6+2 and loses a negative status','2d6+2','2d6+5']},
+  {n:'Barrier',cd:4,kind:'barrier',h:['1d6+4','2d6+4','2d6+4'],team:[false,false,true],t:['Bonus action: one ally gains d6+4 temporary HP that absorbs damage first','Bonus action: one ally gains 2d6+4 temporary HP','Bonus action: every ally gains 2d6+4 temporary HP']},
+  {n:'Revive',cd:0,kind:'revive',once:true,t:['Downed ally returns at 25% max HP, once per fight','50% (costs 3 Fade Shards)','75% (costs 3 Fade Shards)']},
+  {n:'Eclipse Step',cd:4,kind:'sweep',d:['1d4','1d4+2','1d6+2'],t:['1d4 to all nearby enemies, then Leon slips away: enemies lose track of him for a round','1d4+2 to all nearby enemies, and he slips away','1d6+2 to all nearby enemies, and he slips away']},
+  {n:'Comets',tn:['Comets','Meteors','Solar Flare'],cd:3,kind:'multi',hits:[5,7,7],each:['1d4+2','1d4+1','1d6+1'],t:['5 fireballs, 1d4+2 each, random enemies','Meteors: 7 × 1d4+1','Solar Flare: 7 × 1d6+1']},
+  {n:'Lightning',tn:['Lightning','Thunder','Tempest'],cd:3,kind:'solo',splashFrac:[.25,.25,.5],d:['2d8','3d8','3d8'],t:['2d8; nearby take 1/4 splash','Thunder: 3d8','Tempest: 1/2 splash']},
+  {n:'Solaris',tn:['Solaris','Quasar','Supernova'],cd:4,kind:'add',d:['1d8+4','2d8+4','2d8+8'],t:['+1d8+4','Quasar: +2d8+4','Supernova: +2d8+8']},
+ ],
+};
+Object.assign(ABILITIES,{
+  Cullen:[{n:'Smite',cd:3,kind:'add',d:['1d6','1d6','1d6'],t:['+d6 damage (Templar strike)','+d6 damage','+d6 damage']}],
+  Wynne:[{n:'Healing Spell',cd:3,kind:'heal',h:['1d6+4','1d6+4','1d6+4'],t:['Heals one ally 1d6+4','Heals one ally 1d6+4','Heals one ally 1d6+4']}],
+  Bastian:[{n:'Shield Bash',cd:3,kind:'add',d:['1d4','1d4','1d4'],t:['+d4 damage','+d4 damage','+d4 damage']}],
+  Jowan:[{n:'Flame Bolt',cd:3,kind:'add',d:['1d6','1d6','1d6'],t:['+d6 fire damage','+d6 fire damage','+d6 fire damage']}],
+  Wren:[{n:'Flurry',cd:3,kind:'add',d:['1d4','1d4','1d4'],t:['+d4 damage','+d4 damage','+d4 damage']}],
+  Aldric:[{n:'Rallying Strike',cd:3,kind:'add',d:['1d6','1d6','1d6'],t:['+d6 damage (a captain’s greatsword blow)','+d6 damage','+d6 damage']}],
+});
+const WEAPON={bow:{die:'1d6',stat:'DEX',dual:false},daggers:{die:'1d4',stat:'DEX',dual:true},sword:{die:'1d8',stat:'STR',dual:false},axes:{die:'1d6',stat:'STR',dual:true},magic:{die:'1d6',stat:'WIS',dual:false}};
+function mkChar(o){return Object.assign({id:o.name,kind:'pc',hp:null,statuses:[],cds:{},used:{},known:{},tiers:{},down:false},o)}
+function defaults(){
+  const party=[
+    mkChar({name:'Anton',inParty:true,base:10,per:6,mods:{STR:0,DEX:3,CON:0,INT:1,WIS:1,CHA:3},weapon:'bow',alt:'daggers',wTier:1,armorType:'medium',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:0,healBonus:0,dmgPerSwing:0,note:'Flat +2 to CHA rolls',known:{'Royal Charm':1,'Exploding Shot':1,'Pyro Shot':1}}),
+    mkChar({name:'Tyr',inParty:true,base:15,per:8,mods:{STR:4,DEX:1,CON:5,INT:-1,WIS:-1,CHA:0},weapon:'sword',wTier:1,armorType:'heavy',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:1,healBonus:2,dmgPerSwing:0,note:'Flat +2 to healing received',known:{'Counterstrike':1,'Titan Strike':1,'Shield Bash':1}}),
+    mkChar({name:'Renn',inParty:false,base:13,per:8,mods:{STR:4,DEX:0,CON:3,INT:1,WIS:1,CHA:-1},weapon:'axes',wTier:1,armorType:'heavy',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:0,healBonus:0,dmgPerSwing:1,note:'Flat +1 damage on each axe swing',known:{}}),
+    mkChar({name:'Leon',inParty:false,base:8,per:5,mods:{STR:-1,DEX:2,CON:-1,INT:3,WIS:4,CHA:1},weapon:'magic',wTier:1,armorType:'light',armor:{chest:1,gauntlets:1,greaves:1,boots:1},shield:0,healBonus:0,healGive:2,dmgPerSwing:0,note:'Flat +2 to healing with magic or med kits',known:{}}),
+  ];
+  return {v:1,level:2,round:1,turn:0,inBattle:false,order:[],party,allies:[],enemies:[],
+    inv:{coin:150,potions:2,medkits:4,rations:3,shards:0,herbs:0,materials:0,valuables:0},
+    battle:null,log:[],lastResult:'',lastLoot:'',recruits:[]};
+}
+let S=defaults();
+
+/* ---------- derived ---------- */
+function maxHP(c){
+  if(c.kind!=='pc') return c.max;
+  let hp=c.base+c.per*(S.level-1);
+  const a=c.armor; hp+=(c.armorType==='heavy'?a.chest*2:a.chest)+a.gauntlets+a.greaves+a.boots;
+  hp+=c.shield||0;
+  return hp;
+}
+function all(){return [...S.party.filter(c=>c.inParty),...S.allies,...S.enemies]}
+function byId(id){return all().find(c=>c.id===id)}
+function hpOf(c){if(c.hp==null) c.hp=maxHP(c); return c.hp}
+function profBonus(){return 2+Math.floor((S.level-1)/4)}
+
+/* ---------- logging & save ---------- */
+function log(msg){S.log.unshift({t:Date.now(),m:msg}); if(S.log.length>150) S.log.length=150}
+let dbRef=null, saveTimer=null, saving=false, pending=false;
+function persist(){
+  try{localStorage.setItem('greyroad',JSON.stringify(S))}catch(e){}
+  if(!dbRef){setSave('Saved on this device');return}
+  clearTimeout(saveTimer); saveTimer=setTimeout(flush,1200); setSave('Saving…');
+}
+async function flush(){
+  if(saving){pending=true;return}
+  saving=true;
+  try{await dbRef.set({state:JSON.stringify(S)}); setSave('Saved')}
+  catch(e){setSave('Saved on this device only')}
+  saving=false; if(pending){pending=false;flush()}
+}
+function setSave(t){document.getElementById('m-save').textContent=t}
+function commit(){render();persist()}
+
+/* ---------- combat logic ---------- */
+function weaponDamage(c,crit,useAlt){
+  const wk=useAlt&&c.alt?c.alt:c.weapon; const w=WEAPON[wk];
+  const bonus=(c.wTier||0)+(c.mods[w.stat]||0);
+  if(w.dual){
+    const b1=Math.ceil(bonus/2)+(c.dmgPerSwing||0), b2=Math.floor(bonus/2)+(c.dmgPerSwing||0);
+    const r1=rollExpr(w.die,crit), r2=rollExpr(w.die,crit);
+    return {total:r1.total+b1+r2.total+b2,text:`${wk}: [${r1.faces}]+${b1} and [${r2.faces}]+${b2}`};
+  }
+  const r=rollExpr(w.die,crit);
+  return {total:r.total+bonus,text:`${wk}: [${r.faces}]+${bonus}`};
+}
+function enemyHits(e){return e.rank==='boss'?2:1}
+function enemyHit(e,crit){
+  const n=e.rank==='normal'?1:2, flat=S.level+(e.rank==='elite'?3:1);
+  const r=rollExpr(`${n}d${e.die}`,crit); return {total:r.total+flat,text:`[${r.faces}]+${flat}`};
+}
+function enemyDamage(e,crit){ // total of all of the enemy's hits (boss: two hits)
+  let tot=0, txt=[]; for(let i=0;i<enemyHits(e);i++){const h=enemyHit(e,crit); tot+=h.total; txt.push(h.text)}
+  return {total:tot,text:txt.join(' + ')};
+}
+function applyDamage(t,amt,src){
+  let note='';
+  const f=t.statuses.find(s=>s.name==='Fortify');
+  if(f&&amt>0){const red=Math.ceil(amt*(1-f.pct/100)); note=` (Fortify ${f.pct}%: ${amt}→${red})`; amt=red}
+  const before=hpOf(t); t.hp=Math.max(0,before-amt);
+  if(S.battle&&isFriendly(t)) S.battle.taken+=Math.min(amt,before);
+  if(t.hp===0&&!t.down){t.down=true; note+= isFriendly(t)?` — ${t.name} is downed`:` — ${t.name} falls`; if(S.battle&&isFriendly(t)) S.battle.downs++}
+  return {amt,note};
+}
+function heal(t,amt,canRevive){
+  if(t.down&&!canRevive) return {blocked:true};
+  const mx=maxHP(t); const before=hpOf(t); t.hp=Math.min(mx,before+amt); if(t.hp>0) t.down=false;
+  return {gained:t.hp-before};
+}
+function isFriendly(c){return c.kind!=='foe'}
+
+function setCd(c,ab){if(ab.cd>0){c.cds[ab.n]=ab.cd; c.used['_cd_'+ab.n]=true}}
+
+function rollInitiative(){
+  const list=all().filter(c=>!(c.kind==='foe'&&c.down)).map(c=>{
+    const dex=c.kind==='pc'?c.mods.DEX:(c.dex||0); const r=rnd(20); return {id:c.id,score:r+dex,raw:r,dex};
+  }).sort((x,y)=>y.score-x.score);
+  S.order=list.map(x=>x.id); S.turn=0; S.init={}; list.forEach(x=>{S.init[x.id]=x.score});
+  log('Initiative: '+list.map(x=>`${x.id} ${x.score} (${x.raw}${x.dex>=0?'+':''}${x.dex})`).join(', '));
+  S.lastResult='Turn order rolled.\n'+list.map(x=>`${x.id}: ${x.score}`).join('\n');
+}
+/* ---------- enemies & allies ---------- */
+const ENEMY_PRESETS={
+  'Genlock':{die:6,rank:'normal',ftype:'darkspawn'},
+  'Hurlock':{die:8,rank:'normal',ftype:'darkspawn'},
+  'Genlock Commander':{die:6,rank:'elite',ftype:'darkspawn'},
+  'Hurlock Alpha':{die:8,rank:'elite',ftype:'darkspawn'},
+  'Ogre':{die:10,rank:'elite',ftype:'darkspawn',w:1.5},
+  'Wolf':{die:6,rank:'normal',ftype:'beasts',w:.5},
+  'Bandit':{die:6,rank:'normal',ftype:'bandits'},
+  'Soldier':{die:8,rank:'normal',ftype:'bandits'},
+  'Sergeant':{die:8,rank:'elite',ftype:'bandits'},
+  'Captain':{die:8,rank:'boss',ftype:'bandits'},
+  'Archer':{die:6,rank:'normal',ftype:'bandits',w:.5},
+  'Templar':{die:8,rank:'normal',ftype:'templars'},
+  'Mage':{die:6,rank:'normal',ftype:'mages'},
+  'Shambler':{die:6,rank:'normal',ftype:'undead',w:.5},
+  'Enraged Corpse':{die:8,rank:'normal',ftype:'undead'},
+  'Brute':{die:10,rank:'normal',ftype:'undead',w:1.5},
+  'Abomination':{die:8,rank:'normal',ftype:'mages'},
+  'Rage Demon':{die:8,rank:'elite',ftype:'spirits'},
+  'Dread Boss':{die:8,rank:'boss',ftype:'undead'},
+};
+function addEnemy(name,die,rank,ftype,w){
+  const mult={normal:1,elite:1.5,boss:2.5}[rank]; const max=Math.round((20+10*S.level)*mult*(w||1));
+  const same=S.enemies.filter(e=>e.base===name).length+1;
+  const e={id:`${name} ${same}`,name:`${name} ${same}`,base:name,kind:'foe',rank,die:+die,ftype,max,hp:max,statuses:[],cds:{},used:{},known:{},down:false,dex:0};
+  if(!S.enemies.length) rfMarkStart(true);
+  S.enemies.push(e);
+  if(S.inBattle){S.order.push(e.id)}
+  log(`Added ${e.name} (${rank}, ${max} HP).`); commit();
+}
+const ALLY_PRESETS={
+  'Daveth':{max:20,dmg:'2d4+3',ab:'Backstab: +1d6 when the target is engaged with someone else (cooldown 3)',dex:3},
+  'Ser Jory':{max:26,dmg:'1d10+3',ab:'Mighty Blow: +1d8 (cooldown 3)',dex:0},
+};
+function addAlly(name,max,dmg,ab,dex){
+  const a={id:name,name,kind:'ally',max:+max,hp:+max,dmg,ab,dex:+dex||0,statuses:[],cds:{},used:{},known:{},down:false,healBonus:0};
+  S.allies.push(a); if(S.inBattle) S.order.push(a.id); log(`${name} joins the party.`); commit();
+}
+
+/* ---------- loot & shop ---------- */
+const DROP_TYPE={darkspawn:'medkits',bandits:'either',templars:'potions',mages:'potions',undead:'medkits',beasts:'none',spirits:'none'};
+function rollLoot(basic,elite,boss,type){
+  let coins=0; const parts=[];
+  for(let i=0;i<basic;i++){const c=rnd(12);coins+=c;parts.push(c)}
+  for(let i=0;i<elite;i++){const c=5+rnd(19);coins+=c;parts.push(c)}
+  for(let i=0;i<boss;i++){const c=11+rnd(30);coins+=c;parts.push(c)}
+  let items=0, kind=DROP_TYPE[type]||'either';
+  if(kind!=='none'){
+    const base=basic>0?rnd(Math.max(1,Math.floor(basic/2))):0;
+    items=base+elite+boss;
+    if(kind==='either') kind=Math.random()<.5?'potions':'medkits';
+  }
+  let shards=0;
+  if(type==='spirits'){shards=basic+elite*2; for(let i=0;i<boss;i++) shards+=2+rnd(3)}
+  return {coins,parts,items,kind,shards};
+}
+
+
+/* ---------- Rounds tab: roll it yourself, round by round ---------- */
+function rf(){ if(!S.rf) S.rf={n:1,history:[],lines:[],sel:{}}; return S.rf }
+function rfAllies(){return [...S.allies].sort((a,b)=>((b.last||0)-(a.last||0))||((b.since||0)-(a.since||0)))}
+function rfCore(){return S.party.filter(c=>c.inParty)}
+function rfCandidates(){ return [...rfCore(),...rfAllies()] }
+function rfChip(c){return `<label class="chip ${rfActive(c.id)?'ready':''}" style="cursor:pointer"><input type="checkbox" data-rfon="${esc(c.id)}" ${rfActive(c.id)?'checked':''}> ${esc(c.name)}</label>`}
+function rfFighters(){ const R=rf(); return rfCandidates().filter(c=>c.kind==='pc'?!(R.off&&R.off[c.id]):!(R.on&&R.on[c.id]===false)) }
+function rfActive(id){return rfFighters().some(c=>c.id===id)}
+function rfKnown(c){ return (c.kind==='pc'||c.kind==='ally')&&ABILITIES[c.name]?Object.keys(c.known||{}).map(k=>ABILITIES[c.name].find(a=>a.n===k)).filter(Boolean):[] }
+function rfMain(c){ return rfKnown(c).filter(a=>!['passive','buff','selfheal','barrier','mark','hymn','litany'].includes(a.kind)) }
+function rfSupp(c){ return rfKnown(c).filter(a=>['buff','selfheal','barrier','mark','hymn','litany'].includes(a.kind)) }
+function rfBase(c){
+  if(c.kind==='ally') return c.dmg||'';
+  if(c.kind!=='pc') return '';
+  const w=WEAPON[c.weapon]; const bonus=(c.wTier||0)+(c.mods[w.stat]||0);
+  if(w.dual){const b1=Math.ceil(bonus/2)+(c.dmgPerSwing||0), b2=Math.floor(bonus/2)+(c.dmgPerSwing||0); return `${w.die}+${b1} & ${w.die}+${b2}`}
+  return `${w.die}+${bonus}`;
+}
+function rfDelta(t,d){
+  const mx=maxHP(t), b=hpOf(t); const was=t.down;
+  if(d<0&&t.temp>0){const ab=Math.min(t.temp,-d); t.temp-=ab; d+=ab}
+  t.hp=Math.max(0,Math.min(mx,b+d)); t.down=t.hp===0;
+  if(isFriendly(t)&&d<0){const R=rf(); R.taken=(R.taken||0)+Math.min(-d,b); t.took=(t.took||0)+Math.min(-d,b)}
+  if(isFriendly(t)){const R=rf(); const f=mx?t.hp/mx:1; R.minF=(R.minF==null)?f:Math.min(R.minF,f)}
+  if(isFriendly(t)&&t.down&&!was){const R=rf(); R.downs=(R.downs||0)+1}
+}
+function rfLine(m){rf().lines.push(m)}
+function rfSel(id){const R=rf(); return R.sel[id]||(R.sel[id]={})}
+function abn(c,ab){const t=ab&&ab.tn?ab.tn[Math.max(0,((c.known&&c.known[ab.n])||1)-1)]:null; return t||(ab?ab.n:'')}
+function rfAbility(c,name){return name&&(c.kind==='pc'||c.kind==='ally')&&ABILITIES[c.name]?ABILITIES[c.name].find(a=>a.n===name):null}
+function rfTier(c,ab){return ab?((c.known&&c.known[ab.n])||1):1}
+
+function rfRollTotal(c,sel){
+  const R=rf(), ab=rfAbility(c,sel.ab), ti=rfTier(c,ab)-1, tgt=byId(sel.tgt);
+  if(sel.ab==='__medkit'){
+    let expr='1d6+2', extra=0; if(c.name==='Leon'&&c.known['Field Medic']){expr=ABILITIES.Leon[0].t[c.known['Field Medic']-1].match(/\d+d\d+\+\d+/)[0]; extra+=2}
+    if(tgt&&tgt.healBonus) extra+=tgt.healBonus; const x=rollExpr(expr);
+    return {total:x.total+extra,text:`Med kit ${expr}: [${x.faces}]+${x.flat}${extra?'+'+extra:''} = ${x.total+extra} (uses your whole turn)`,heal:true};
+  }
+  if(ab&&['mark','vanish','roar','hymn'].includes(ab.kind)) return {total:0,text:`${ab.n}: no roll needed. Pick a target if it asks for one, then Apply.`,util:true};
+  if(ab&&(ab.kind==='burst'||ab.kind==='barrier')){const x=rollExpr(ab.h[ti]); const b=ab.kind==='burst'?(c.healGive||0):0; return {total:x.total+b,text:`${ab.n}: [${x.faces}]+${x.flat}${b?'+'+b:''} ${(ab.team&&ab.team[ti])||ab.kind==='burst'?'for each ally':'for one ally'}`,heal:true}}
+  if(ab&&ab.kind==='heal'){const x=rollExpr(ab.h[ti]); const b=c.healGive||0; return {total:x.total+b,text:`${ab.n}: [${x.faces}]+${x.flat}${b?'+'+b:''} (healing)`,heal:true}}
+  if(ab&&ab.kind==='revive') return {total:0,text:'Revive: a downed ally returns at 25% max HP.',revive:true};
+  const hy=R.hymn&&R.hymn.turns>0?R.hymn:null, atk=hy?hy.atk:0;
+  const first=sel.first!==undefined?sel.first:(c.name==='Anton'&&!c.used['_first']);
+  const asn=(c.name==='Anton'&&c.known&&c.known['Assassinate'])||0, useAsn=!!(asn&&first);
+  const advOn=!!(sel.adv||useAsn||(ab&&ab.adv&&ab.adv[ti]));
+  const r1=rnd(20), r2=advOn?rnd(20):null, raw=advOn?Math.max(r1,r2):r1;
+  const adj=(raw===1||raw===20)?raw:Math.min(19,raw+atk); let tab=attackTable(adj);
+  if(useAsn&&asn>=3) tab={...tab,mod:(tab.mod===null?0:tab.mod),crit:true,label:'Critical (Assassinate)'};
+  const head=`d20 ${raw}${advOn?' ('+r1+'/'+r2+')':''}${atk?' +'+atk+' hymn':''} → ${tab.label}`;
+  if(tab.mod===null) return {total:0,text:head+' · Miss',miss:true};
+  const base=()=>{ if(c.kind==='ally'){const x=rollExpr(c.dmg,tab.crit);return {total:x.total,text:`[${x.faces}]+${x.flat}`}} return weaponDamage(c,tab.crit,sel.alt) };
+  let total=0, text='', hitsArr=null;
+  if(ab&&ab.n==='Triple Arrow'){
+    const tier=ti+1, pct=tier>=3?1:.75, plus=tier>=2?1:0, arrows=[];
+    for(let i=0;i<3;i++){const w=weaponDamage(c,tab.crit,sel.alt); arrows.push(Math.ceil(w.total*pct)+plus)}
+    total=arrows.reduce((s,x)=>s+x,0)+tab.mod; hitsArr=arrows; text=`Arrows: ${arrows.join(', ')} (split them across targets if you like)`;
+  } else if(ab&&ab.kind==='multi'){
+    const hits=[]; for(let i=0;i<ab.hits[ti];i++) hits.push(rollExpr(ab.each[ti],tab.crit).total);
+    total=hits.reduce((s,x)=>s+x,0)+tab.mod; hitsArr=hits; text=`${abn(c,ab)}: ${hits.join(', ')}`;
+  } else if(ab&&ab.two){
+    const xs=ab.two[ti], hits=[]; for(let i=0;i<2;i++){const w=base(); const x=rollExpr(xs[i],tab.crit); hits.push(w.total+x.total)}
+    total=hits[0]+hits[1]+tab.mod; hitsArr=hits; text=`${ab.n}: hit 1 ${hits[0]}, hit 2 ${hits[1]} (two separate hits, they can go to different enemies)`;
+  } else if(ab&&(ab.kind==='solo'||ab.kind==='sweep')){
+    const x=rollExpr(ab.d[ti],tab.crit); total=x.total+tab.mod; text=`${ab.n}: [${x.faces}]+${x.flat}${ab.kind==='sweep'?' to EACH adjacent enemy':''}`;
+  } else {
+    const w=base(); total=w.total+tab.mod; text=w.text;
+    if(ab&&ab.kind==='add'&&ab.d){const x=rollExpr(ab.d[ti],tab.crit); total+=x.total; text+=` · ${abn(c,ab)} [${x.faces}]+${x.flat}`}
+    if(ab&&ab.reprisal){const bn=Math.min(c.took||0,ab.reprisal[ti]); total+=bn; text+=` · reprisal +${bn} (Tyr took ${c.took||0})`}
+  }
+  if(hy&&hy.dmg){const x=rollExpr(hy.dmg); total+=x.total; text+=` · hymn +${x.total}`}
+  if(useAsn&&asn>=2){const ax=rollExpr('1d4'); total+=ax.total; text+=` · Assassinate +${ax.total}`}
+  const mk=tgt&&tgt.statuses&&tgt.statuses.find(x=>x.name==='Marked');
+  if(mk){total+=[2,2,3][mk.tier-1]; text+=` · mark +${[2,2,3][mk.tier-1]}`; if(mk.tier>=2&&!mk.used){const x=rollExpr(mk.tier===2?'1d4':'1d6'); total+=x.total; mk.used=true; text+=` +${x.total}`}}
+  total=Math.max(0,total);
+  return {total,hits:hitsArr,mod:tab.mod,crit:tab.crit,text:`${head} · ${text} · ${tab.mod>=0?'+':''}${tab.mod} = ${total}`};
+}
+
+function rfHpBox(c){return `<div class="rf-hpbox"><button data-rf="minus" data-id="${esc(c.id)}" aria-label="Subtract from ${esc(c.name)}">−</button><input type="number" min="0" placeholder="0" data-rfamt="${esc(c.id)}" aria-label="HP change for ${esc(c.name)}"><button data-rf="plus" data-id="${esc(c.id)}" aria-label="Add to ${esc(c.name)}">+</button></div>`}
+function rfRow(c){
+  const sel=rfSel(c.id), mains=rfMain(c), sups=rfSupp(c);
+  const tgts=[...S.enemies,...rfFighters()];
+  const cdOpt=a=>{const cd=c.cds[a.n]||0, spent=a.once&&c.used[a.n]; return `<option value="${esc(a.n)}" ${(cd||spent)?'disabled':''} ${sel.ab===a.n?'selected':''}>${esc(abn(c,a))}${cd?' (cooldown '+cd+')':spent?' (used)':''}</option>`};
+  const supOpt=a=>{const cd=c.cds[a.n]||0, spent=a.once&&c.used[a.n]; return `<option value="${esc(a.n)}" ${(cd||spent)?'disabled':''} ${sel.sup===a.n?'selected':''}>${esc(a.n)}${cd?' (cooldown '+cd+')':spent?' (used)':''}</option>`};
+  return `<div class="card ${c.down?'down':''}">
+   <h3><span>${esc(c.name)}${wardenBadge(c.name)}</span><span class="tag">base ${esc(rfBase(c))}</span></h3><div class="row" style="margin:.1rem 0 .3rem"><button class="primary" data-rf="autochar" data-id="${esc(c.id)}">Auto</button><span class="muted">${(rf().done||[]).includes(c.id)?'acted this round':(rfNextId()===c.id?'next up':'')}</span>${c.kind==='ally'?`<button data-remove="${esc(c.id)}" aria-label="Remove ${esc(c.name)}">Remove</button>`:''}</div>${hpBar(c)}${chips(c)}${rfHpBox(c)}
+   <div class="row">
+     <label class="field">Passive / support<select data-rfsel="sup" data-id="${esc(c.id)}"><option value="">—</option>
+       <option value="Potion" ${S.inv.potions<1?'disabled':''} ${sel.sup==='Potion'?'selected':''}>Potion (${S.inv.potions})</option>
+${sups.map(supOpt).join('')}</select></label>
+     <label class="field">Who gets it<select data-rfsel="stgt" data-id="${esc(c.id)}">${[...rfFighters(),...S.enemies.filter(e=>!e.down)].map(f=>`<option value="${esc(f.id)}" ${(sel.stgt||c.id)===f.id?'selected':''}>${esc(f.name)}${f.down?' (down)':''}</option>`).join('')}</select></label>
+     <button data-rf="usesup" data-id="${esc(c.id)}">Use</button>
+   </div>
+   <div class="row">
+     <label class="field">Main ability<select data-rfsel="ab" data-id="${esc(c.id)}"><option value="">Basic attack</option><option value="__medkit" ${S.inv.medkits<1?'disabled':''} ${sel.ab==='__medkit'?'selected':''}>Med kit (${S.inv.medkits}) — uses your turn</option>${mains.map(cdOpt).join('')}</select></label>
+     <label class="field">Target<select data-rfsel="tgt" data-id="${esc(c.id)}"><option value="">—</option>${tgts.map(t=>`<option value="${esc(t.id)}" ${sel.tgt===t.id?'selected':''}>${esc(t.name)}${t.down?' (down)':''}</option>`).join('')}</select></label>
+     ${(()=>{const a2=rfAbility(c,sel.ab); return a2&&a2.two?`<label class="field">Second hit<select data-rfsel="tgt2" data-id="${esc(c.id)}"><option value="">Same as first</option>${S.enemies.filter(e=>!e.down).map(t=>`<option value="${esc(t.id)}" ${sel.tgt2===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label>`:''})()}
+     ${c.alt?`<label class="field">Weapon<select data-rfsel="alt" data-id="${esc(c.id)}"><option value="">${esc(c.weapon)}</option><option value="1" ${sel.alt?'selected':''}>${esc(c.alt)}</option></select></label>`:''}
+     <label class="field"><span>Advantage</span><input type="checkbox" data-rfsel="adv" data-id="${esc(c.id)}" ${sel.adv?'checked':''}></label>
+      ${c.name==='Leon'?(()=>{const a3=rfAbility(c,sel.ab), m3=rfShardMult(c,a3), have=S.inv.shards||0, can=m3>1&&have>=1; return `<label class="field" title="${have<1?'No Fade Shards left':m3>1?'Spend 1 Fade Shard on this use':'This ability cannot be boosted'}"><span>Fade Shard${m3>1?' (x'+m3+')':''} · ${have} left</span><input type="checkbox" data-rfsel="shard" data-id="${esc(c.id)}" ${can?'':'disabled'} ${can&&sel.shard?'checked':''}></label>`})():''}
+   </div>
+   <div class="row">
+     <label class="field">Total<input type="number" min="0" data-rfsel="total" data-id="${esc(c.id)}" value="${sel.total??''}" placeholder="0"></label>
+     <button data-rf="roll" data-id="${esc(c.id)}">Roll for me</button>
+     <button class="primary" data-rf="apply" data-id="${esc(c.id)}">Apply</button>
+   </div>
+   <div class="rf-note" id="rf-note-${esc(c.id)}">${esc(sel.note||'')}</div></div>`;
+}
+function rfFoeCard(c){return `<div class="card foe ${c.down?'down':''}"><h3>${esc(c.name)}<span class="tag">${esc(c.rank||'')} · d${c.die||''}</span></h3><div class="row" style="margin:.1rem 0 .3rem"><button data-rf="autochar" data-id="${esc(c.id)}">Act</button><span class="muted">${(rf().done||[]).includes(c.id)?'acted this round':(rfNextId()===c.id?'next up':'')}</span><button data-remove="${esc(c.id)}" aria-label="Remove ${esc(c.name)}">Remove</button></div>${hpBar(c)}${chips(c)}${rfHpBox(c)}</div>`}
+function renderRounds(){
+  const el=document.getElementById('p-rounds'); if(!el) return; const R=rf(); const _y=window.scrollY;
+  const over=rfOver();
+  if(over&&!(R.result&&R.result.applied)&&(!R.result||R.result.sig!==rfSig())&&!window._rfAuto){window._rfAuto=true; setTimeout(()=>{window._rfAuto=false; const Q=rf(); if(rfOver()&&!(Q.result&&Q.result.applied)&&(!Q.result||Q.result.sig!==rfSig())){ rfFinish(); rfAfterFinish() }},0)}
+  const logHtml=R.history.map(h=>`<div class="rf-div">Round ${h.n}</div>${esc(h.lines.length?h.lines.join('\n'):'(no entries)')}\n`).join('')+(R.history.length?`<div class="rf-div">Round ${R.n} (now)</div>`:'')+esc(R.lines.join('\n'));
+  el.innerHTML=`
+  <div class="row" style="margin:0 0 .6rem">
+    <button class="danger" data-rf="newfight">${R.confirmNew?'Click again to clear this fight':'New fight'}</button><button data-rf="init">Roll initiative</button><button data-rf="optloot">Auto-loot: ${(S.autoOpts&&S.autoOpts.loot)?'on':'off'}</button><button data-rf="optrest">Auto short rest: ${(S.autoOpts&&S.autoOpts.rest)?'on':'off'}</button><button data-rf="optshard">Auto Fade Shards: ${(S.autoOpts&&S.autoOpts.shards)?'on':'off'}</button><label class="field">Healers heal below <input type="number" id="rf-healbelow" min="10" max="100" step="5" value="${(S.autoOpts&&S.autoOpts.healBelow)||50}" style="width:4.5rem" aria-label="Auto-heal threshold in percent"> % HP</label>
+    <label class="field">Add enemy<select id="rf-pre">${Object.keys(ENEMY_PRESETS).map(k=>`<option>${esc(k)}</option>`).join('')}</select></label>
+    <label class="field">Count<input type="number" id="rf-n" value="1" min="1" max="12"></label><button data-rf="addenemy">Add</button>
+  </div>
+  <div class="row" style="margin:0 0 .6rem"><span class="muted">Custom enemy:</span>
+    <label class="field">Name<input type="text" id="rf-cname" placeholder="Howe's Soldier" maxlength="30"></label>
+    <label class="field">Rank<select id="rf-crank"><option>normal</option><option>elite</option><option>boss</option></select></label>
+    <label class="field">Damage die<select id="rf-cdie"><option>6</option><option selected>8</option><option>10</option><option>12</option></select></label>
+    <label class="field">Weight<select id="rf-cw"><option value="0.5">Light (x0.5)</option><option value="1" selected>Standard (x1)</option><option value="1.5">Heavy (x1.5)</option></select></label>
+    <label class="field">Type<select id="rf-ctype"><option>darkspawn</option><option selected>bandits</option><option>templars</option><option>mages</option><option>undead</option><option>beasts</option><option>spirits</option></select></label>
+    <label class="field">Count<input type="number" id="rf-cn" value="1" min="1" max="12"></label><button data-rf="addcustom">Add custom</button>
+  </div>
+  <div class="row" style="margin:0 0 .3rem"><span class="muted">Core:</span>${rfCore().map(rfChip).join('')}</div>
+  <div class="row" style="margin:0 0 .6rem"><span class="muted">Allies (recent first):</span>${rfAllies().map(rfChip).join('')}</div>
+  ${S.order.length?`<div class="order" aria-label="Turn order">${S.order.filter(id=>S.enemies.some(e=>e.id===id)||rfActive(id)).map(id=>{const c=byId(id);return `<span class="${c&&c.down?'out':''}">${esc(id)}</span>`}).join('')}</div>`:''}
+  <div class="action" style="margin:.4rem 0 .8rem">
+    <div class="row" style="margin:0">
+      <button class="primary" data-rf="autonext">Auto next turn${rfNextId()?' ('+esc(rfWho(rfNextId()))+')':''}</button><button class="primary" data-rf="autoround">Auto round</button><button data-rf="endround">End round ${R.n} →</button><button data-rf="autofight">Auto-fight (up to 10 rounds)</button>
+      <button data-rf="enemiesact">Enemies act</button><button data-rf="undo">Undo last turn</button><button data-rf="finish">Finish fight &amp; result</button>
+    </div>
+    <div class="row">
+      <label class="field">Standing order<select id="rf-rwho">${rfFighters().map(f=>`<option>${esc(f.name)}</option>`).join('')}</select></label>
+      <label class="field">Does<select id="rf-ract"><option value="heal">Heal (spell)</option><option value="medkit">Med kit</option><option value="potion">Potion</option></select></label>
+      <label class="field">Below %<input type="number" id="rf-rbelow" value="40" min="1" max="99"></label><button data-rf="addrule">Add</button>
+      ${(R.standing||[]).map((r,i)=>`<span class="chip status">${esc(r.who)}: ${esc(r.act)} under ${r.below}% <button data-rf="delrule" data-i="${i}" aria-label="Remove order" style="padding:0 .3rem;border:none;background:none">×</button></span>`).join('')}
+    </div>
+    ${R.warn?`<div class="result" role="alert"><strong>Heads up:</strong> ${esc(R.warn.msg)} ${R.warn.pending?'<button data-rf="orderfirst">Play them first</button><button data-rf="ordernow">Play out of order</button>':''}<button data-rf="ordercancel">Dismiss</button></div>`:''}
+    ${(()=>{const ck=rfChecks(); return ck.length?`<div class="result" style="margin-top:.5rem"><strong>Checks</strong>${ck.map(w=>`<div>${esc(w.m)} ${w.fix?`<button data-rf="${w.fix}">${esc(w.label)}</button>`:''}</div>`).join('')}</div>`:''})()}
+    ${R.stop?`<div class="result" aria-live="polite">Auto stopped: ${esc(R.stop)}</div>`:''}
+    ${over&&R.result?`<div class="result" aria-live="polite" style="margin-top:.6rem"><strong>Fight over.</strong> ${esc(over)} Press Copy results and paste it to Claude.${/surrender/.test(over||'')&&!R.result.refused?' <button data-rf="refuse">Don’t accept surrender</button>':''}</div>`:''}
+    ${R.result?`<div style="margin-top:.6rem"><textarea id="rf-result-text" rows="9" style="width:100%;font:inherit;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:.4rem" readonly>${esc(R.result.text)}</textarea>
+      <div class="row"><button class="primary" data-rf="copy">Copy results</button>${R.result.rested?'':'<button data-rf="shortrest">Short rest (+25% HP)</button>'}${/surrender/.test(over||'')&&!R.result.refused?'<button data-rf="refuse">Don’t accept surrender</button>':''}${R.result.loot?`<label><input type="checkbox" id="rf-town"> Town takes half</label><button class="primary" data-rf="applyloot">Apply loot</button>`:''}</div></div>`:''}
+  </div>
+  <div class="rf-banner active">Round ${R.n}</div>
+  <div class="rf-hist rf-scroll" id="rf-log">${logHtml}</div>
+  <div class="two">
+    <div><h2 style="font-size:1.3rem;margin-bottom:.4rem">Core four</h2><div class="grid">${rfCore().filter(c=>rfActive(c.id)).map(rfRow).join('')}</div>
+      ${rfAllies().some(c=>rfActive(c.id))?`<h2 style="font-size:1.3rem;margin:.8rem 0 .4rem">Allies</h2><div class="grid">${rfAllies().filter(c=>rfActive(c.id)).map(rfRow).join('')}</div>`:''}</div>
+    <div><h2 style="font-size:1.3rem;margin-bottom:.4rem">Enemies</h2><div class="grid">${S.enemies.length?S.enemies.map(rfFoeCard).join(''):'<p class="muted">Add enemies above.</p>'}</div></div>
+  </div>`;
+  const lg=document.getElementById('rf-log'); if(lg) lg.scrollTop=lg.scrollHeight;
+  window.scrollTo(0,_y);
+}
+
+/* potion / med kit / second wind popup */
+function rfOpenPop(kind,cid,tid){S._pop={kind,cid,tid,brewed:kind==='Potion'}; rfPopRoll(); rfPopShow()}
+function rfPopRoll(){
+  const p=S._pop, c=byId(p.cid), t=byId(p.tid); let expr, extra=0, label;
+  if(p.kind==='Potion'){expr=p.brewed?'4d6+2':'2d6+2'; label=p.brewed?'Leon-brewed potion 4d6+2':'Potion 2d6+2'}
+  else if(p.kind==='Med kit'){
+    if(c.name==='Leon'&&c.known['Field Medic']){expr=ABILITIES.Leon[0].t[c.known['Field Medic']-1].match(/\d+d\d+\+\d+/)[0]; extra+=2; label=`Leon's med kit ${expr}, +2`}
+    else {expr='1d6+2'; label='Med kit 1d6+2'}
+  } else {const ab=ABILITIES[c.name].find(a=>a.n===p.kind); expr=ab.h[(c.known[p.kind]||1)-1]; label=`${p.kind} ${expr}`}
+  const r=rollExpr(expr); if(t.healBonus) extra+=t.healBonus;
+  p.amt=r.total+extra; p.text=`${label}: [${r.faces}]+${r.flat}${extra?'+'+extra+(t.healBonus?' (incl. '+t.name+' +'+t.healBonus+')':''):''} = ${p.amt}`;
+}
+function rfPopShow(){
+  const p=S._pop, c=byId(p.cid), t=byId(p.tid);
+  let m=document.getElementById('rf-modal'); if(!m){m=document.createElement('div'); m.id='rf-modal'; m.className='rf-modal'; document.body.appendChild(m)}
+  m.innerHTML=`<div class="rf-box" role="dialog" aria-modal="true" aria-label="${esc(p.kind)} roll"><h3>${esc(p.kind)}</h3>
+    <p style="margin:.1rem 0">${esc(c.name)} → ${esc(t.name)}${t.down?' (downed — only a med kit can bring them back mid-fight)':''}</p>
+    <div class="big">+${p.amt} HP</div><div class="rf-note">${esc(p.text)}</div>
+    ${p.kind==='Potion'?`<label style="display:block;margin:.5rem 0"><input type="checkbox" data-rf="brew" ${p.brewed?'checked':''}> Brewed by Leon (4d6+2)</label>`:''}
+    <div class="row"><button data-rf="reroll">Reroll</button><button class="primary" data-rf="confirm">Apply</button><button data-rf="close">Cancel</button></div></div>`;
+  m.style.display='flex';
+}
+function rfPopClose(){const m=document.getElementById('rf-modal'); if(m) m.style.display='none'; S._pop=null}
+function rfPopConfirm(){
+  rfSnap();
+  const p=S._pop; if(!p) return; const c=byId(p.cid), t=byId(p.tid);
+  if(t.down&&p.kind==='Potion'){rfPopClose(); S.lastResult='A downed ally can only be brought back by a med kit or Revive.'; return commit()}
+  if((p.kind==='Potion'||p.kind==='Med kit')&&!rfItemFree()){rfPopClose(); S.lastResult='Only one potion or med kit can be used each round.'; return commit()}
+  if(p.kind==='Potion'||p.kind==='Med kit') rfItemMark();
+  const r=heal(t,p.amt,p.kind==='Med kit'); const gained=r.gained??0;
+  if(p.kind==='Potion') S.inv.potions=Math.max(0,S.inv.potions-1); else if(p.kind==='Med kit') S.inv.medkits=Math.max(0,S.inv.medkits-1);
+  else {const ab=ABILITIES[c.name].find(a=>a.n===p.kind); if(ab.once) c.used[ab.n]=true; if(ab.cd){c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true}}
+  rfLine(`${c.name}: ${p.kind} → ${t.name} +${gained}`); log(`${c.name} uses ${p.kind} on ${t.name}: +${gained}.`);
+  rfPopClose(); commit();
+}
+
+function rfApply(id){const R=rf(), n0=R.lines.length, out=rfApply0(id); const c=byId(id); if(c){const added=R.lines.slice(n0); if(added.some(l=>l.startsWith(c.name+':')&&!/^[^:]+:\s*(potion|fortify|barrier|mark|vigorous|second wind|litany)/i.test(l))){rfMarkDone(id); commit()}} return out}
+function rfApply0(id){
+  rfSnap();
+  const c=byId(id), sel=rfSel(id); let total=Math.max(0,+sel.total||0); const ab=rfAbility(c,sel.ab), tgt=byId(sel.tgt), R=rf();
+  const ti=rfTier(c,ab)-1;
+  { const sm=(sel.shard&&ab)?rfShardMult(c,ab):1; if(sel.shard&&sm>1){ if((S.inv.shards||0)<1){S.lastResult='No Fade Shards left.'; sel.shard=false; return commit()} S.inv.shards--; total=Math.floor(total*sm); sel.hits=null; sel.shard=false; rfLine(`${c.name} spends a Fade Shard (x${sm}): ${total}`) } }
+  if(sel.ab==='__medkit'){
+    if(!tgt){S.lastResult='Pick who to patch up.'; return commit()} if(S.inv.medkits<1){S.lastResult='No med kits left.'; return commit()}
+    if(!rfItemFree()){S.lastResult='Only one potion or med kit can be used each round.'; return commit()} rfItemMark();
+    const was=tgt.down; const b=hpOf(tgt); S.inv.medkits--; tgt.hp=Math.min(maxHP(tgt),b+total); if(tgt.hp>0) tgt.down=false;
+    rfLine(`${c.name}: med kit → ${tgt.name} +${tgt.hp-b}${was&&!tgt.down?' (back up)':''} (uses the turn)`); sel.total=''; sel.note=''; return commit();
+  }
+  if(ab&&ab.kind==='revive'){
+    if(!tgt||!tgt.down){S.lastResult='Pick a downed ally as the target.'; return commit()}
+    const rpct=[.25,.5,.75][ti]||.25; if(ti>=1){ if((S.inv.shards||0)<3){S.lastResult='Not enough Fade Shards (a tier 2 or 3 Revive costs 3).'; return commit()} S.inv.shards-=3 }
+    tgt.hp=Math.max(1,Math.ceil(maxHP(tgt)*rpct)); tgt.down=false; c.used[ab.n]=true; rfLine(`${c.name}: Revive → ${tgt.name} at ${tgt.hp}${ti>=1?' (3 Fade Shards used)':''}`);
+  } else if(ab&&ab.kind==='heal'){
+    if(!tgt){S.lastResult='Pick who to heal.'; return commit()}
+    const r=heal(tgt,total,false); rfLine(`${c.name}: ${ab.n} → ${tgt.name} +${r.gained??0}${r.blocked?' (downed: needs a med kit)':''}`);
+  } else if(ab&&ab.kind==='burst'){
+    rfFighters().filter(f=>!f.down).forEach(f=>{const b=hpOf(f); rfDelta(f,total+(f.healBonus||0)); f.statuses=f.statuses.filter(x=>x.name!=='Burn')}); rfLine(`${c.name}: Heal Burst +${total} to every ally`);
+  } else if(ab&&ab.kind==='barrier'){
+    if(ab.team&&ab.team[ti]) rfFighters().filter(f=>!f.down).forEach(f=>{f.temp=(f.temp||0)+total}); else if(tgt&&!tgt.down) tgt.temp=(tgt.temp||0)+total; rfLine(`${c.name}: Barrier, ${total} temporary HP on ${(ab.team&&ab.team[ti])?'every ally':(tgt?tgt.name:'nobody')}`);
+  } else if(ab&&ab.kind==='mark'){
+    if(!tgt||tgt.kind!=='foe'){S.lastResult='Pick an enemy to mark.'; return commit()}
+    S.enemies.forEach(e=>e.statuses=e.statuses.filter(x=>x.name!=='Marked')); tgt.statuses.push({name:'Marked',turns:2,tier:ti+1,until:c.id}); rfLine(`${c.name}: marks ${tgt.name} (allies hit it harder, until ${c.name}’s next turn)`);
+  } else if(ab&&ab.kind==='vanish'){
+    c.statuses.push({name:'Vanished',turns:[1,2,2][ti],tier:ti+1}); if(ti>=2) R.blind=2; rfLine(`${c.name}: Vanish. Enemies drop aggro on him${ti>=2?' and are blinded (−2 to hit)':''}. His next attack has advantage.`);
+  } else if(ab&&ab.kind==='roar'){
+    R.roar={turns:2,reduce:ab.reduce[ti]}; rfLine(`${c.name}: Warden’s Roar. Every enemy targets him${ab.reduce[ti]?' (he takes '+ab.reduce[ti]+'% less)':''}.`);
+  } else if(ab&&ab.kind==='hymn'){
+    R.hymn={turns:2,atk:ab.atk[ti],dmg:ab.dmg[ti]}; rfLine(`${c.name}: ${ab.n}. Allies get +${ab.atk[ti]} to attack${ab.dmg[ti]?' and +'+ab.dmg[ti]+' damage':''}.`);
+  } else if(ab&&ab.kind==='sweep'){
+    const foes=S.enemies.filter(e=>!e.down); foes.forEach(e=>rfDelta(e,-total)); rfLine(`${c.name}: ${abn(c,ab)} −${total} to each of ${foes.length} enemies`); if(ab.n==='Eclipse Step') rfSlip(c);
+  } else if(ab&&ab.n==='Comets'){
+    const live0=S.enemies.filter(e=>!e.down); if(!live0.length){S.lastResult='No enemies left to hit.'; return commit()}
+    let hits=(sel.hits&&sel.hits.length&&sel.hits.reduce((a,b)=>a+b,0)+(sel.mod||0)===total)?sel.hits.slice():null;
+    if(hits) hits[0]=Math.max(0,hits[0]+(sel.mod||0)); else {const n=ab.hits[ti]; hits=[]; let rem=total; for(let i=0;i<n;i++){const v=Math.floor(rem/(n-i)); hits.push(v); rem-=v}}
+    const done=[]; let killed=null; hits.forEach(h=>{const live=S.enemies.filter(e=>!e.down); if(!live.length) return; const t=live[Math.floor(Math.random()*live.length)]; rfDelta(t,-h); done.push(t.name+' −'+h); if(t.down) killed=t});
+    rfLine(`${c.name}: Comets → ${done.join(', ')}`); if(killed) rfFury(c,killed);
+  } else if(ab&&ab.two){
+    if(!tgt||tgt.kind!=='foe'){S.lastResult='Pick an enemy as the target for the first hit.'; return commit()}
+    let hits=(sel.hits&&sel.hits.length===2&&sel.hits[0]+sel.hits[1]+(sel.mod||0)===total)?sel.hits.slice():null;
+    if(hits) hits[0]=Math.max(0,hits[0]+(sel.mod||0)); else {const a1=Math.ceil(total/2); hits=[a1,total-a1]}
+    const t2=byId(sel.tgt2); const done=[]; let killed=null;
+    rfDelta(tgt,-hits[0]); done.push(`${tgt.name} −${hits[0]}`); if(tgt.down) killed=tgt;
+    const second=(t2&&t2.kind==='foe'&&!t2.down)?t2:(tgt.down?rfSecondHitTarget(null,hits[1]):tgt);
+    if(second){rfDelta(second,-hits[1]); done.push(`${second.name} −${hits[1]}`); if(second.down) killed=second}
+    rfLine(`${c.name}: ${abn(c,ab)} → ${done.join(', ')}`); if(killed) rfFury(c,killed);
+  } else {
+    if(!tgt){S.lastResult='Pick a target first.'; return commit()}
+    const b=hpOf(tgt); rfDelta(tgt,-total);
+    rfLine(`${c.name}: ${ab?ab.n:'attack'} → ${tgt.name} −${total} (${b}→${tgt.hp})${tgt.hp===0?' — down':''}`);
+    if(c.name==='Anton') c.used['_first']=true;
+    if(ab&&ab.selfHeal&&ab.selfHeal[ti]>0&&total>0){const h=Math.ceil(total*ab.selfHeal[ti]); rfDelta(c,h); rfLine(`   ${c.name} heals ${h}`)}
+    if(ab&&ab.reprisal) c.took=0;
+    if(ab&&ab.burn&&total>0){tgt.statuses=tgt.statuses.filter(x=>x.name!=='Burn'); tgt.statuses.push({name:'Burn',turns:ab.burnTurns||2,dice:ab.burn[ti]})}
+    rfAfterHit(c,ab,tgt,ti,total,true); rfFury(c,tgt);
+  }
+  if(ab&&ab.cd){c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true}
+  sel.total=''; sel.note=''; commit();
+}
+function rfUseSup(id){
+  rfSnap();
+  const c=byId(id), sel=rfSel(id), s=sel.sup; if(!s) return; const tid=sel.stgt||id;
+  if(s==='Potion'||s==='Med kit'){ if(!rfItemFree()){S.lastResult='Only one potion or med kit can be used each round.'; return commit()} return rfOpenPop(s,id,tid)}
+  const ab=rfAbility(c,s); if(!ab) return; const ti=rfTier(c,ab)-1;
+  if(ab.kind==='selfheal') return rfOpenPop(s,id,id);
+  if(ab.kind==='litany'){
+    const dz=S.enemies.filter(e=>!e.down&&e.ftype==='spirits'&&e.rank!=='boss'); dz.forEach(e=>{e.statuses=e.statuses.filter(x=>x.name!=='Dazed'); e.statuses.push({name:'Dazed',turns:1})});
+    c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true; rfLine(`${c.name}: Litany of Adralla (bonus action). ${dz.length?dz.map(e=>e.name).join(', ')+' '+(dz.length>1?'are':'is')+' dazed and lose their next turn.':'No spirit-type enemy to daze.'}`); sel.sup=''; return commit();
+  }
+  if(ab.kind==='hymn'){
+    const R=rf(); R.hymn={turns:2,atk:ab.atk[ti],dmg:ab.dmg[ti]};
+    c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true; rfLine(`${c.name}: ${ab.n} (bonus action). Allies get +${ab.atk[ti]} to attack${ab.dmg[ti]?' and +'+ab.dmg[ti]+' damage':''}.`); sel.sup=''; return commit();
+  }
+  if(ab.kind==='mark'){
+    const mt=byId(sel.stgt);
+    if(!mt||mt.kind!=='foe'||mt.down){S.lastResult='Pick a living enemy in the "Who gets it" menu to mark.'; return commit()}
+    S.enemies.forEach(e=>e.statuses=e.statuses.filter(x=>x.name!=='Marked')); mt.statuses.push({name:'Marked',turns:2,tier:ti+1,until:c.id});
+    c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true; rfLine(`${c.name}: Mark Target (bonus action) on ${mt.name} (allies hit it harder, until ${c.name}’s next turn)`); sel.sup=''; return commit();
+  }
+  if(ab.kind==='barrier'){
+    const team=!!(ab.team&&ab.team[ti]), bt=byId(sel.stgt||id);
+    if(!team&&(!bt||bt.down)){S.lastResult='Pick a living ally for Barrier (the "Who gets it" menu).'; return commit()}
+    const x=rollExpr(ab.h[ti]).total;
+    if(team) rfFighters().filter(f=>!f.down).forEach(f=>{f.temp=(f.temp||0)+x}); else bt.temp=(bt.temp||0)+x;
+    c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true; rfLine(`${c.name}: Barrier (bonus action), ${x} temporary HP on ${team?'every ally':bt.name}`); sel.sup=''; return commit();
+  }
+  if(ab.kind==='buff'){
+    c.statuses=c.statuses.filter(x=>!['Fortify','Spiky Shield'].includes(x.name));
+    if(ab.n==='Fortify') c.statuses.push({name:'Fortify',pct:ab.pct[ti],turns:2}); else c.statuses.push({name:'Spiky Shield',turns:2,spike:ab.spike?ab.spike[ti]:''});
+    c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true; rfLine(`${c.name}: ${ab.n}`); sel.sup=''; commit();
+  }
+}
+function rfEndCore(){
+  const R=rf(); R.history.push({n:R.n,lines:R.lines.slice()}); R.n++; R.lines=[]; R.sel={}; R.done=[]; R.warn=null;
+  ['roar','hymn'].forEach(k=>{if(R[k]){R[k].turns--; if(R[k].turns<=0) R[k]=null}}); if(R.blind){R.blind--; if(R.blind<=0) R.blind=0}
+  all().forEach(c=>{
+    Object.keys(c.cds).forEach(k=>{ if(c.used['_rf_'+k]) delete c.used['_rf_'+k]; else if(c.cds[k]>0) c.cds[k]-- });
+    c.statuses.forEach(s=>{ if(s.name==='Burn'&&c.kind==='foe'){const d=rollExpr(s.dice||'1d4').total; rfDelta(c,-d); R.lines.push(`${c.name} burns for ${d}`)} s.turns--});
+    c.statuses=c.statuses.filter(s=>s.turns>0); c.took=0;
+  });
+  log(`Round ${R.n-1} complete.`);
+}
+function rfEndRound(){rfSnap(); rfEndCore(); commit()}
+function rfNewFight(){
+  const Q=rf(); if(!Q.confirmNew){Q.confirmNew=true; return commit()}
+  S.rf={n:1,history:[],lines:[],sel:{}}; S.enemies=[]; S.order=[]; S.turn=0; S.init={};
+  all().forEach(c=>{c.cds={}; c.used={}; c.statuses=[]}); commit();
+}
+
+/* ---------- automation (runs in your browser: no cost to Claude) ---------- */
+let RF_UNDO=[];
+function rfSnap(){try{RF_UNDO.push(JSON.stringify({party:S.party,allies:S.allies,enemies:S.enemies,inv:S.inv,rf:S.rf,order:S.order,turn:S.turn})); if(RF_UNDO.length>80) RF_UNDO.shift()}catch(e){}}
+function rfShortRest(){const R=rf(); if(R.result&&R.result.rested){S.lastResult='Already rested after this fight.'; return commit()} rfSnap(); const out=[]; rfFighters().forEach(f=>{const b=hpOf(f), g=Math.floor(maxHP(f)/4); f.temp=0; rfDelta(f,g); f.cds={}; f.used={}; f.statuses=[]; out.push(f.name+' '+b+' → '+hpOf(f)+'/'+maxHP(f))}); const msg='Short rest (25% max HP, cooldowns reset): '+out.join(', ')+'.'; if(R.result){R.result.text+='\n'+msg; R.result.rested=true} S.lastResult=msg; log(msg); commit()}
+function rfRefuseSurrender(){
+  const R=rf(), live=S.enemies.filter(e=>!e.down); if(!live.length){S.lastResult='Nobody is left standing.'; return commit()}
+  rfSnap(); const names=live.map(e=>e.name); const cnt={normal:0,elite:0,boss:0}; live.forEach(e=>{cnt[e.rank]=(cnt[e.rank]||0)+1});
+  live.forEach(e=>{e.hp=0; e.down=true});
+  const loot=rollLoot(cnt.normal,cnt.elite,cnt.boss,live[0].ftype||'undead'); loot.shards=rfShardsFrom(live);
+  S.inv.coin+=loot.coins; if(loot.kind==='potions') S.inv.potions+=loot.items; else if(loot.kind==='medkits') S.inv.medkits+=loot.items; S.inv.shards=(S.inv.shards||0)+(loot.shards||0);
+  const msg=`Surrender refused: ${names.join(', ')} finished off. Extra loot applied: ${loot.coins} sov${loot.items?', '+loot.items+' '+loot.kind:''}${loot.shards?', '+loot.shards+' Fade Shards':''}.`;
+  rfLine(msg); log(msg);
+  if(R.result){R.result.text=R.result.text.replace(/\nStill standing:[^\n]*/,'')+'\n'+msg; R.result.refused=true; R.result.applied=true; R.result.sig=rfSig()}
+  S.lastResult=msg; commit();
+}
+function rfUndo(){const x=RF_UNDO.pop(); if(!x){S.lastResult='Nothing to undo.'; return commit()} const o=JSON.parse(x); Object.assign(S,o); commit()}
+const RF_PRI={Anton:['Artemis’s Wrath','Triple Arrow','Pyro Shot','Exploding Shot'],Tyr:['Titan Strike','Spiky Shield','Shield Bash','Charging Bull'],Renn:['Dragon Strike','Sabretooth','Thor’s Anvil','Guillotine'],Leon:['Comets','Lightning','Solaris','Eclipse Step'],Cullen:['Smite'],Bastian:['Shield Bash'],Jowan:['Flame Bolt'],Wren:['Flurry'],Aldric:['Rallying Strike']};
+const RF_RANGED=/archer|mage|horror|caster|bowman|crossbow/i;
+function rfShardsFrom(list){ let sh=0; list.filter(e=>e.ftype==='spirits').forEach(e=>{ sh+= e.rank==='boss'?2+rnd(3): e.rank==='elite'?2: e.rank==='light'?0: 1 }); return sh }
+function rfSecondHitTarget(first,h){const live=S.enemies.filter(e=>!e.down); if(!live.length) return null; const weak=a=>a.reduce((x,y)=>hpOf(y)<hpOf(x)?y:x); if(!first||first.down) return weak(live); if(hpOf(first)<=h) return first; const others=live.filter(e=>e!==first); return others.length?weak(others):first}
+function rfWeakestFoe(){const f=S.enemies.filter(e=>!e.down); return f.length?f.reduce((a,b)=>hpOf(b)<hpOf(a)?b:a):null}
+function rfStances(c){return c.statuses.some(s=>s.name==='Fortify'||s.name==='Spiky Shield')}
+function rfAutoStance(c){
+  if(c.name!=='Tyr'||rfStances(c)) return;
+  const ab=rfAbility(c,'Fortify'); if(ab&&c.known&&c.known['Fortify']&&!(c.cds['Fortify']>0)){const ti=rfTier(c,ab)-1;
+    c.statuses.push({name:'Fortify',pct:ab.pct[ti],turns:2}); c.cds['Fortify']=ab.cd; c.used['_rf_Fortify']=true; rfLine(`${c.name}: Fortify`)}
+}
+function rfSlip(c){c.statuses=c.statuses.filter(x=>x.name!=='Vanished'); c.statuses.push({name:'Vanished',turns:1,tier:1}); rfLine(`${c.name} slips away (enemies lose track of him this round)`)}
+function rfShardMult(c,ab){ if(!c||c.name!=='Leon'||!ab) return 1; if(ab.kind==='heal') return 2; if(ab.kind==='burst') return 1.5; if(['solo','multi','sweep','add'].includes(ab.kind)||ab.n==='Comets') return 1.5; return 1 }
+function rfAutoShard(){ return !!(S.autoOpts&&S.autoOpts.shards)&&(S.inv.shards||0)>=6 }
+function rfHealBelow(){return ((S.autoOpts&&S.autoOpts.healBelow)||50)/100}
+function rfAutoUtility(c){ // true if the utility used the turn
+  const R=rf(), foes=S.enemies.filter(e=>!e.down), fr=rfFighters().filter(f=>!f.down); const ready=n=>{const a=rfAbility(c,n); return a&&c.known[n]&&!(c.cds[n]>0)?a:null};
+  const use=(a,extra)=>{const ti=rfTier(c,a)-1; c.cds[a.n]=a.cd; c.used['_rf_'+a.n]=true; return ti};
+  let a;
+  if(c.name==='Leon'){
+    if((a=ready('Barrier'))&&foes.length&&fr.length){const ti=use(a),x=rollExpr(a.h[ti]).total;
+      if(a.team&&a.team[ti]){fr.forEach(f=>f.temp=(f.temp||0)+x); rfLine(`Leon: Barrier (bonus action) +${x} temp HP on everyone`)}
+      else{const bt=fr.reduce((p,q)=>((hpOf(q)+(q.temp||0))/maxHP(q))<((hpOf(p)+(p.temp||0))/maxHP(p))?q:p); bt.temp=(bt.temp||0)+x; rfLine(`Leon: Barrier (bonus action) +${x} temp HP on ${bt.name}`)}}
+    if((a=ready('Heal Burst'))&&fr.filter(f=>hpOf(f)<maxHP(f)*.6).length>=2){const ti=use(a); let x=rollExpr(a.h[ti]).total+(c.healGive||0), sh=''; if(rfAutoShard()){S.inv.shards--; x=Math.floor(x*1.5); sh=' (Fade Shard x1.5)'} fr.forEach(f=>{rfDelta(f,x+(f.healBonus||0)); f.statuses=f.statuses.filter(s=>s.name!=='Burn')}); rfLine(`Leon: Heal Burst +${x} to everyone${sh}`); return true}
+    if(ready('Heal')){const hurt=fr.filter(f=>hpOf(f)<maxHP(f)*rfHealBelow()); if(hurt.length){const low=hurt.reduce((p,q)=>hpOf(q)/maxHP(q)<hpOf(p)/maxHP(p)?q:p); if(rfAutoHeal(c,low,'heal')) return true}}
+  }
+  if(c.name==='Renn'){
+    if((a=ready('Vigorous Roar'))&&foes.length){const ti=use(a); R.hymn={turns:2,atk:a.atk[ti],dmg:a.dmg[ti]}; rfLine(`Renn: Vigorous Roar (bonus action): allies +${a.atk[ti]} to attack${a.dmg[ti]?' and +'+a.dmg[ti]+' damage':''}`)}
+    if((a=ready('Whirlwind'))&&foes.length>=4){const ti=use(a),x=rollExpr(a.d[ti]).total; foes.forEach(e=>rfDelta(e,-x)); rfLine(`Renn: Whirlwind −${x} to ${foes.length} enemies`); return true}
+  }
+  if(c.name==='Tyr'){
+    if((a=ready('Warden’s Roar'))&&(fr.some(f=>f.name!=='Tyr'&&hpOf(f)<maxHP(f)*.45))&&!R.roar){const ti=use(a); R.roar={turns:2,reduce:a.reduce[ti]}; rfLine('Tyr: Warden’s Roar (every enemy targets him)'); return true}
+  }
+  if(c.name==='Anton'){
+    if((a=ready('Vanish'))&&hpOf(c)<maxHP(c)*.4){const ti=use(a); c.statuses.push({name:'Vanished',turns:[1,2,2][ti],tier:ti+1}); if(ti>=2) R.blind=2; rfLine('Anton: Vanish (enemies lose track of him)'); return false}
+    if((a=ready('Litany of Adralla'))&&foes.some(e=>e.ftype==='spirits'&&e.rank!=='boss')){const dz=foes.filter(e=>e.ftype==='spirits'&&e.rank!=='boss'); use(a); dz.forEach(e=>{e.statuses=e.statuses.filter(x=>x.name!=='Dazed'); e.statuses.push({name:'Dazed',turns:1})}); rfLine(`Anton: Litany of Adralla (bonus action). ${dz.map(e=>e.name).join(', ')} dazed`)}
+    if((a=ready('Mark Target'))&&foes.length){const ti=use(a), t=rfWeakestFoe()||foes[0]; S.enemies.forEach(e=>e.statuses=e.statuses.filter(x=>x.name!=='Marked')); t.statuses.push({name:'Marked',turns:2,tier:ti+1,until:c.id}); rfLine(`Anton: marks ${t.name}`); return false}
+  }
+  return false;
+}
+function rfItemFree(){const R=rf(); return R.itemRound!==R.n}
+function rfItemMark(){const R=rf(); R.itemRound=R.n}
+function rfAutoHeal(c,tgt,kind){ // kind: potion | medkit | heal
+  if(kind==='potion'){ if(S.inv.potions<1||!rfItemFree()) return false; rfItemMark(); const r=rollExpr('4d6+2'); const amt=r.total+(tgt.healBonus||0); S.inv.potions--; rfDelta(tgt,amt); rfLine(`${c.name}: potion (brewed by Leon) → ${tgt.name} +${amt}`); return false }
+  if(kind==='medkit'){ if(S.inv.medkits<1||!rfItemFree()) return false; rfItemMark(); let expr='1d6+2', extra=tgt.healBonus||0;
+    if(c.name==='Leon'&&c.known['Field Medic']){expr=ABILITIES.Leon[0].t[c.known['Field Medic']-1].match(/\d+d\d+\+\d+/)[0]; extra+=2}
+    const r=rollExpr(expr); const amt=r.total+extra; S.inv.medkits--; const was=tgt.down; rfDelta(tgt,amt); if(was&&tgt.hp>0) tgt.down=false; rfLine(`${c.name}: med kit → ${tgt.name} +${amt}`); return true }
+  if(kind==='heal'){ const ab=rfAbility(c,'Heal'); if(!ab||c.cds['Heal']>0||tgt.down) return false; const ti=rfTier(c,ab)-1; const r=rollExpr(ab.h[ti]); let amt=r.total+(c.healGive||0)+(tgt.healBonus||0), sh='';
+    if(c.name==='Leon'&&rfAutoShard()&&hpOf(tgt)<maxHP(tgt)*.4){S.inv.shards--; amt*=2; sh=' (Fade Shard x2)'}
+    rfDelta(tgt,amt); c.cds['Heal']=ab.cd; c.used['_rf_Heal']=true; rfLine(`${c.name}: Heal → ${tgt.name} +${amt}${sh}`); return true }
+  return false;
+}
+function rfAfterHit(c,ab,tgt,ti,total,noBurn){
+  if(!ab||!tgt||tgt.kind!=='foe'||!(total>0)) return;
+  if(ab.burn&&!noBurn&&!tgt.down){tgt.statuses=tgt.statuses.filter(x=>x.name!=='Burn'); tgt.statuses.push({name:'Burn',turns:ab.burnTurns||2,dice:ab.burn[ti]}); rfLine(`   ${tgt.name} is burning (${ab.burn[ti]} for ${ab.burnTurns||2} turns)`)}
+  const near=S.enemies.filter(e=>!e.down&&e.id!==tgt.id).slice(0,2);
+  if(ab.splash||ab.splashFrac){near.forEach(e=>{const d=ab.splash?rollExpr(ab.splash[ti]).total:Math.ceil(total*ab.splashFrac[ti]); rfDelta(e,-d); rfLine(`   splash → ${e.name} −${d}`)})}
+  if(ab.exec&&!tgt.down&&hpOf(tgt)>0&&hpOf(tgt)<ab.exec[ti]){rfDelta(tgt,-hpOf(tgt)); rfLine(`   ${ab.n} executes ${tgt.name}`)}
+  if(ab.n==='Charging Bull'&&ti>=1&&!tgt.down){tgt.statuses=tgt.statuses.filter(x=>x.name!=='Focused'); tgt.statuses.push({name:'Focused',turns:2,on:c.id}); rfLine(`   ${tgt.name} now focuses ${c.name}`)}
+}
+function rfFury(c,tgt){
+  if(c.name!=='Renn'||!c.known||!c.known['Fury']||!tgt||!tgt.down) return;
+  const R=rf(); if(c.used['_fury']===R.n) return; const nx=rfWeakestFoe(); if(!nx) return;
+  c.used['_fury']=R.n; const x=rollExpr(ABILITIES.Renn.find(a=>a.n==='Fury').d[c.known['Fury']-1]).total; rfDelta(nx,-x); rfLine(`   ${c.name}: Fury → ${nx.name} −${x}`);
+}
+function rfAllyHeal(c){
+  if(c.kind!=='ally') return false;
+  const hb=rfKnown(c).find(a=>a.kind==='heal'); if(!hb||c.cds[hb.n]>0) return false;
+  const hurt=rfFighters().filter(f=>!f.down&&hpOf(f)<maxHP(f)*rfHealBelow()); if(!hurt.length) return false;
+  const low=hurt.reduce((a,b)=>hpOf(b)/maxHP(b)<hpOf(a)/maxHP(a)?b:a); const ti=rfTier(c,hb)-1;
+  const x=rollExpr(hb.h[ti]).total+(low.healBonus||0); rfDelta(low,x); c.cds[hb.n]=hb.cd; c.used['_rf_'+hb.n]=true;
+  rfLine(`${c.name}: ${hb.n} +${x} to ${low.name}`); return true;
+}
+function rfPartyTurn(c){
+  const foe=rfWeakestFoe(); if(!foe) return;
+  rfAutoStance(c);
+  if(rfAllyHeal(c)) return;
+  if(rfAutoUtility(c)) return;
+  // standing orders
+  for(const rule of (rf().standing||[])){
+    if(rule.who!==c.name) continue;
+    const cand=rfFighters().filter(f=>hpOf(f)<maxHP(f)*rule.below/100&&(rule.act==='medkit'||!f.down));
+    if(!cand.length) continue; const low=cand.reduce((a,b)=>hpOf(b)/maxHP(b)<hpOf(a)/maxHP(a)?b:a);
+    if(rfAutoHeal(c,low,rule.act)) return;
+  }
+  // Renn's Second Wind when low
+  const sw=rfAbility(c,'Second Wind'); if(sw&&!c.used['Second Wind']&&hpOf(c)<maxHP(c)*.4){const r=rollExpr(sw.h[rfTier(c,sw)-1]); rfDelta(c,r.total); c.used['Second Wind']=true; rfLine(`${c.name}: Second Wind +${r.total}`)}
+  // pick an ability
+  let ab=null; const stars=c.stars||{}; for(const a of rfMain(c)){ if(stars[a.n]&&c.known[a.n]&&!(c.cds[a.n]>0)&&!(a.once&&c.used[a.n])){ab=a;break} }
+  if(!ab) for(const n of (RF_PRI[c.name]||[])){const a=rfAbility(c,n); if(a&&c.known[n]&&!(c.cds[n]>0)){ab=a;break}}
+  const vanished=c.statuses.find(x=>x.name==='Vanished');
+  const sel={ab:ab?ab.n:'',adv:c.name==='Anton'&&!!vanished,first:c.name==='Anton'&&!c.used['_first'],tgt:foe.id};
+  if(c.name==='Anton') c.used['_first']=true;
+  const r=rfRollTotal(c,sel), ti=ab?rfTier(c,ab)-1:0;
+  if(r.miss){ rfLine(`${c.name}: ${ab?ab.n:'attack'} → ${foe.name} miss`) }
+  else if(ab&&ab.kind==='sweep'){
+    const live=S.enemies.filter(e=>!e.down); live.forEach(e=>rfDelta(e,-r.total)); rfLine(`${c.name}: ${abn(c,ab)} → ${live.length} enemies −${r.total} each`); if(ab.n==='Eclipse Step') rfSlip(c);
+  } else if(ab&&r.hits&&r.hits.length>1){
+    const hits=r.hits.slice(); hits[0]=Math.max(0,hits[0]+(r.mod||0)); const done=[]; let killed=null;
+    let firstTg=null;
+    hits.forEach((h,hi)=>{const live=S.enemies.filter(e=>!e.down); if(!live.length) return;
+      const tg=(ab.n==='Comets')?live[Math.floor(Math.random()*live.length)]:(ab.two&&hi===1?rfSecondHitTarget(firstTg,h):live.reduce((a,b)=>hpOf(b)<hpOf(a)?b:a));
+      if(hi===0) firstTg=tg;
+      rfDelta(tg,-h); done.push(`${tg.name} −${h}`); if(tg.down) killed=tg});
+    rfLine(`${c.name}: ${abn(c,ab)} → ${done.join(', ')}`); if(killed) rfFury(c,killed);
+  } else {
+    const before=hpOf(foe); rfDelta(foe,-r.total);
+    rfLine(`${c.name}: ${ab?ab.n:'attack'} → ${foe.name} −${r.total} (${before}→${foe.hp})${foe.down?' — down':''}`);
+    rfAfterHit(c,ab,foe,ti,r.total); rfFury(c,foe);
+  }
+  if(!r.miss){ if(ab&&ab.selfHeal&&ab.selfHeal[rfTier(c,ab)-1]>0){const h=Math.ceil(r.total*ab.selfHeal[rfTier(c,ab)-1]); rfDelta(c,h); rfLine(`   ${c.name} heals ${h}`)}
+    if(ab&&ab.cd){c.cds[ab.n]=ab.cd; c.used['_rf_'+ab.n]=true} }
+}
+function rfFoeTurn(e){
+  if(e.statuses&&e.statuses.some(s=>s.name==='Dazed')){rfLine(`${e.name} is dazed and loses its turn`); return}
+  const R=rf(); let tg=rfFighters().filter(f=>!f.down); if(!tg.length) return;
+  const seen=tg.filter(f=>!f.statuses.some(s=>s.name==='Vanished')); if(seen.length) tg=seen;
+  const tyr=tg.find(f=>f.name==='Tyr'), roar=R.roar&&R.roar.turns>0&&tyr;
+  const W={Tyr:3,Renn:2,Cullen:2}, ranged=RF_RANGED.test(e.name);
+  for(let h=0;h<enemyHits(e);h++){
+    if(e.down) break;
+    let t; if(roar) t=tyr; else {const pool=[]; tg.forEach(f=>{const w=ranged?1:(W[f.name]||1); for(let i=0;i<w;i++) pool.push(f)}); t=pool[Math.floor(Math.random()*pool.length)]}
+    const shp=(t.name==='Anton'&&t.known&&t.known['Shadows'])?[.3,.4,.5][t.known['Shadows']-1]:0; if(!roar&&shp&&Math.random()<shp){const alt=tg.filter(x=>x!==t); if(alt.length) t=alt[Math.floor(Math.random()*alt.length)]}
+    const fcs=e.statuses.find(s=>s.name==='Focused'); if(fcs&&!roar){const ft=tg.find(x=>x.id===fcs.on); if(ft) t=ft}
+    const raw=rnd(20), adj=(raw===1||raw===20)?raw:Math.max(2,raw-(R.blind?2:0)), tab=attackTable(adj);
+    const cs=t.known&&t.known['Counterstrike']; const range=cs?cs+2:0;
+    if(tab.mod===null){ rfLine(`${e.name} → ${t.name}: miss`) }
+    else{
+      let dmg=Math.max(0,enemyHit(e,tab.crit).total+tab.mod);
+      const f=t.statuses.find(x=>x.name==='Fortify'); if(f) dmg=Math.ceil(dmg*(1-f.pct/100));
+      if(roar&&t===tyr&&R.roar.reduce) dmg=Math.ceil(dmg*(1-R.roar.reduce/100));
+      const b=hpOf(t)+(t.temp||0); rfDelta(t,-dmg); rfLine(`${e.name} → ${t.name} −${dmg} (${b}→${hpOf(t)}${t.temp?' +'+t.temp+' temp':''})${t.down?' — DOWN':''}${f?' [Fortify]':''}`);
+    }
+    if(cs&&!ranged&&raw<=range&&!e.down&&!t.down){const ct=Math.ceil(rollExpr('1d8+3').total/2); rfDelta(e,-ct); rfLine(`   ${t.name} Counterstrike ${ct} → ${e.name}`)}
+  }
+}
+function rfStopReason(){
+  const R=rf(), fr=rfFighters(), foes=S.enemies;
+  if(foes.length&&foes.every(e=>e.down)) return 'Victory: all enemies defeated.';
+  if(fr.every(f=>f.down)) return 'Defeat.';
+  const d=fr.find(f=>f.down); if(d) return `${d.name} is down.`;
+  const lim=(R.standing&&R.standing.length)?.15:.3; const low=fr.find(f=>hpOf(f)<maxHP(f)*lim); if(low) return `${low.name} is low (${hpOf(low)}/${maxHP(low)}).`;
+  const boss=foes.find(e=>e.rank==='boss'&&!e.down&&hpOf(e)<=e.max/2&&!R.phase); if(boss){R.phase=true; return `${boss.name} is at half HP (phase change).`}
+  const live=foes.filter(e=>!e.down); if(live.length===1&&['bandits','templars','mages'].includes(live[0].ftype)&&hpOf(live[0])<=live[0].max*.25) return `${live[0].name} may surrender: talk to them.`;
+  return null;
+}
+function rfLinkHeal(c){ if(!c||c.name!=='Leon'||!c.known) return; const h=c.cds['Heal']||0, b=c.cds['Heal Burst']||0, m=Math.max(h,b); if(m>0){ if(c.known['Heal']) c.cds['Heal']=m; if(c.known['Heal Burst']) c.cds['Heal Burst']=m; if(c.used['_rf_Heal']||c.used['_rf_Heal Burst']){ c.used['_rf_Heal']=true; c.used['_rf_Heal Burst']=true } } }
+function rfMarkDone(id){const R=rf(); R.done=R.done||[]; if(!R.done.includes(id)) R.done.push(id); rfLinkHeal(byId(id))}
+function rfActiveIds(){return [...S.enemies.filter(e=>!e.down).map(e=>e.id),...rfFighters().filter(f=>!f.down).map(f=>f.id)]}
+function rfWho(id){const c=byId(id); return c?c.name:id}
+function rfNextId(){const R=rf(); if(!S.order.length) return ''; const need=rfActiveIds(); return S.order.find(x=>need.includes(x)&&!(R.done||[]).includes(x))||''}
+function rfEnsureOrder(){
+  const R=rf(); S.init=S.init||{}; const need=rfActiveIds();
+  if(!S.order.length){ all().forEach(x=>{if(x.used){delete x.used['Second Wind']; delete x.used['Revive']}}); rollInitiative(); S.order=S.order.filter(id=>{const c=byId(id); return c&&(c.kind==='foe'||rfActive(id))}); R.lines.push('Initiative rolled automatically: '+S.order.join(', ')); return }
+  S.order=S.order.filter(id=>{const c=byId(id); return c&&(c.kind==='foe'||rfActive(id))});
+  const missing=need.filter(id=>!S.order.includes(id));
+  if(missing.length){
+    S.order.forEach((id,i)=>{if(S.init[id]===undefined) S.init[id]=20-Math.round(i*20/Math.max(1,S.order.length))});
+    missing.forEach(id=>{const c=byId(id), dex=c.kind==='pc'?c.mods.DEX:(c.dex||0); S.init[id]=rnd(20)+dex; S.order.push(id)});
+    S.order.sort((a,b)=>(S.init[b]??0)-(S.init[a]??0)); R.lines.push('Added to the turn order: '+missing.join(', '));
+  }
+}
+function rfPlayTurn(id){const c=byId(id); rfSnap(); all().forEach(x=>{x.statuses=x.statuses.filter(s=>s.until!==id)}); if(c.kind==='foe') rfFoeTurn(c); else rfPartyTurn(c); rfMarkDone(id)}
+function rfAutoChar(id,mode){
+  const R=rf(), c=byId(id); R.warn=null; if(!c) return commit();
+  if(!S.enemies.length){R.warn={msg:'There are no enemies yet. Add some first.'}; return commit()}
+  if(S.enemies.every(e=>e.down)){R.warn={msg:'Every enemy is already down. Use Finish fight.'}; return commit()}
+  if(c.down){R.warn={msg:c.name+' is down and can’t act. Use a med kit or Revive on them.'}; return commit()}
+  if(c.kind!=='foe'&&!rfActive(id)){R.warn={msg:c.name+' is switched off for this fight. Switch their chip on first.'}; return commit()}
+  rfEnsureOrder();
+  if((R.done||[]).includes(id)){R.warn={msg:c.name+' has already acted in round '+R.n+'. Press End round to go again.'}; return commit()}
+  const need=rfActiveIds(), idx=S.order.indexOf(id), before=S.order.slice(0,idx).filter(x=>need.includes(x)&&!(R.done||[]).includes(x));
+  if(before.length&&mode!=='now'&&mode!=='first'){R.warn={msg:'Out of order: '+before.map(rfWho).join(', ')+' go before '+c.name+'.',pending:id}; return commit()}
+  if(mode==='first') before.forEach(x=>{const o=byId(x); if(o&&!o.down&&!S.enemies.every(e=>e.down)) rfPlayTurn(x)});
+  if(!S.enemies.every(e=>e.down)) rfPlayTurn(id);
+  R.stop=rfStopReason(); commit();
+}
+function rfAutoNext(){
+  const R=rf(); R.warn=null;
+  if(!S.enemies.length){R.warn={msg:'There are no enemies yet. Add some first.'}; return commit()}
+  if(S.enemies.every(e=>e.down)){R.warn={msg:'Every enemy is already down. Use Finish fight.'}; return commit()}
+  rfEnsureOrder(); const nx=rfNextId();
+  if(!nx){R.warn={msg:'Everyone has acted in round '+R.n+'. Press End round.'}; return commit()}
+  rfPlayTurn(nx); R.stop=rfStopReason(); commit();
+}
+function rfUnits(e){const base=20+10*S.level, rk=e.rank||'normal', mult={normal:1,elite:1.5,boss:2.5}[rk]||1, unit={normal:1,elite:2,boss:3}[rk]||1; return unit*((e.max||base)/(base*mult))}
+function rfSizeNote(){
+  const foes=S.enemies; if(!foes.length) return null;
+  const n=rfFighters().filter(f=>!f.down).length||1, units=foes.reduce((a,e)=>a+rfUnits(e),0), adj={Easy:1.25,Deadly:.75,Hard:.9}[S.lastDifficulty]||1, t=.75*n*adj;
+  const lo=t*.85, hi=t*1.15, off=units>t*1.35?'too big':units<t*.65?'too small':'';
+  return {msg:`Fight size: ${units.toFixed(1)} enemy units for ${n} fighters (suggested ${lo.toFixed(1)} to ${hi.toFixed(1)}${S.lastDifficulty?', after your last '+S.lastDifficulty+' fight':''}).${off?' This looks '+off+' for your side.':''}`,off};
+}
+function rfChecks(){
+  const R=rf(), out=[], foes=S.enemies, fr=rfFighters(), need=rfActiveIds();
+  if(!foes.length) out.push({m:'No enemies yet. Add some above.'});
+  else {const z=rfSizeNote(); if(z) out.push({m:z.msg})}
+  if(foes.length&&!S.order.length) out.push({m:'Initiative hasn’t been rolled yet (auto will roll it for you).',fix:'fixinit',label:'Roll it'});
+  else if(S.order.length&&need.some(id=>!S.order.includes(id))) out.push({m:'The turn order is missing '+need.filter(id=>!S.order.includes(id)).join(', ')+'.',fix:'fixinit',label:'Add them'});
+  const off=rfAllies().filter(a=>!rfActive(a.id)&&!a.down); if(foes.length&&off.length) out.push({m:'Allies switched off: '+off.map(a=>a.name).join(', ')+'.',fix:'fixallies',label:'Switch on'});
+  const stale=all().filter(c=>c.kind!=='foe'&&(Object.keys(c.cds||{}).some(k=>c.cds[k]>0)||(c.statuses||[]).length));
+  if(R.n===1&&!R.lines.length&&!R.history.length&&foes.length&&stale.length) out.push({m:'Leftover cooldowns or statuses from the last fight: '+stale.map(c=>c.name).join(', ')+'.',fix:'fixflags',label:'Clear them'});
+  const badhp=all().filter(c=>hpOf(c)>maxHP(c)||hpOf(c)<0||(hpOf(c)===0&&!c.down)||(hpOf(c)>0&&c.down));
+  if(badhp.length) out.push({m:'HP looks inconsistent for: '+badhp.map(c=>c.name).join(', ')+'.',fix:'fixhp',label:'Fix HP'});
+  const base=20+10*S.level, badmax=foes.filter(e=>{const mult={normal:1,elite:1.5,boss:2.5}[e.rank]||1; return ![1,.5,1.5].some(w=>Math.round(base*mult*w)===e.max)});
+  if(badmax.length) out.push({m:'Enemy HP doesn’t match level '+S.level+': '+badmax.map(e=>e.name+' ('+e.max+')').join(', ')+'.'});
+  const unk=[]; rfCore().forEach(c=>Object.keys(c.known||{}).forEach(k=>{if(!(ABILITIES[c.name]||[]).some(a=>a.n===k)) unk.push(c.name+': '+k)})); if(unk.length) out.push({m:'Unknown abilities: '+unk.join(', ')+'.'});
+  const hurt=fr.find(f=>!f.down&&hpOf(f)<maxHP(f)*.5); if(foes.length&&hurt&&S.inv.potions<1&&S.inv.medkits<1) out.push({m:'No potions or med kits left, and '+hurt.name+' is hurt.'});
+  return out;
+}
+function rfAfterFinish(){
+  const R=rf(), o=S.autoOpts||{}, win=/^Victory/.test(rfOver()||'');
+  if(o.loot&&R.result&&R.result.loot&&!R.result.applied) rfApplyLoot();
+  if(o.rest&&win&&R.result&&!R.result.rested) rfShortRest();
+}
+function rfAutoRound(){
+  const R=rf(); rfSnap(); rfEnsureOrder(); R.stop=null; R.warn=null;
+  for(const id of S.order.slice()){
+    const c=byId(id); if(!c||c.down) continue; if((R.done||[]).includes(id)) continue; if(c.kind!=='foe'&&!rfActive(id)) continue; if(c.kind!=='foe'&&R.lines.some(l=>l.startsWith(c.name+':')&&!/^[^:]+:\s*(potion|fortify|barrier|mark|vigorous|second wind|litany)/i.test(l))) continue; if(S.enemies.length&&S.enemies.every(e=>e.down)) break;
+    rfSnap(); all().forEach(x=>{x.statuses=x.statuses.filter(s=>s.until!==c.id)}); if(c.kind==='foe') rfFoeTurn(c); else rfPartyTurn(c); rfMarkDone(id);
+  }
+  rfEndCore(); R.stop=rfStopReason(); commit();
+}
+function rfEnemiesAct(){const R=rf(); rfSnap(); rfEnsureOrder(); S.enemies.filter(e=>!e.down&&!(R.done||[]).includes(e.id)).forEach(e=>{rfFoeTurn(e); rfMarkDone(e.id)}); R.stop=rfStopReason(); commit()}
+function rfAutoFight(){const R=rf(); R.stop=null; for(let i=0;i<10;i++){rfAutoRound(); if(R.stop) break} if(!R.stop) R.stop='10 rounds played.'; commit()}
+function rfMarkStart(force){
+  const R=rf(); if(R.start&&!force) return;
+  const hp={}; rfFighters().forEach(f=>{hp[f.id]=hpOf(f)});
+  R.start={hp,potions:S.inv.potions,medkits:S.inv.medkits,shards:S.inv.shards||0};
+}
+function rfOver(){
+  const fr=rfFighters(), foes=S.enemies;
+  if(!foes.length) return null;
+  if(foes.every(e=>e.down)) return 'Victory: all enemies defeated.';
+  if(fr.length&&fr.every(f=>f.down)) return 'Defeat: the whole party is down.';
+  const live=foes.filter(e=>!e.down);
+  const doneNow=(rf().done||[]), pendingTurns=fr.filter(f=>!f.down&&!doneNow.includes(f.id));
+  if(live.length===1&&pendingTurns.length===0&&['bandits','templars','mages'].includes(live[0].ftype)&&hpOf(live[0])<=live[0].max*.25) return live[0].name+' surrenders (under 25% HP). Talk to them before finishing.';
+  return null;
+}
+function rfSig(){
+  const R=rf();
+  return JSON.stringify([S.enemies.map(e=>[e.id,hpOf(e),e.down]),rfFighters().map(f=>[f.id,hpOf(f),f.down]),S.inv.potions,S.inv.medkits,S.inv.shards||0,R.n,R.lines.length]);
+}
+function rfFinish(){
+  const R=rf(), foes=S.enemies, dead=foes.filter(e=>e.down), why=rfOver();
+  if(R.result&&R.result.applied) return;
+  const prev=(R.result&&R.result.ld&&R.result.dead===dead.length)?R.result.ld:null;
+  let ld=prev;
+  if(!ld){
+    const cnt={normal:0,elite:0,boss:0}; dead.forEach(e=>cnt[e.rank]++);
+    const type=(dead[0]&&dead[0].ftype)||(foes[0]&&foes[0].ftype)||'undead', loot=rollLoot(cnt.normal,cnt.elite,cnt.boss,type); loot.shards=rfShardsFrom(dead);
+    const dr=rnd(20), pool=['herbs','materials','valuables'].sort(()=>Math.random()-.5); let got=dr<=3?[]:dr<=8?pool.slice(0,1):dr<=14?pool.slice(0,2):pool;
+    for(let i=0;i<cnt.elite+cnt.boss;i++) got.push(['herbs','materials','valuables'][rnd(3)-1]);
+    ld={coins:loot.coins,items:loot.items,kind:loot.kind,shards:loot.shards,got};
+  }
+  const fr=rfFighters(), mx=fr.reduce((a,c)=>a+maxHP(c),0), taken=R.taken||0, pct=mx?Math.round(taken/mx*100):0, downs=R.downs||0;
+  const rounds=R.n-1+(R.lines.length?1:0); let usedN=0; if(R.start) usedN=Math.max(0,R.start.potions-S.inv.potions)+Math.max(0,R.start.medkits-S.inv.medkits);
+  const lowFrac=fr.length?Math.min(...fr.map(f=>hpOf(f)/maxHP(f))):1;
+  const minF=Math.min(R.minF==null?1:R.minF,lowFrac), usedAll=R.start?usedN+Math.max(0,R.start.shards-(S.inv.shards||0)):usedN;
+  const startSum=R.start&&R.start.hp?Object.values(R.start.hp).reduce((a,b)=>a+(+b||0),0):mx, endSum=fr.reduce((a,c)=>a+hpOf(c),0), net=startSum?Math.max(0,Math.round((startSum-endSum)/startSum*100)):0;
+  const danger=minF>=.5?0:minF>=.25?15:minF>=.10?30:40;
+  const score=danger+30*downs+Math.min(25,5*usedAll)+Math.round(.3*net)-(rounds<=2?15:rounds<=4?10:0);
+  let diff=score<30?'Easy':score<55?'Moderate':score<80?'Hard':'Deadly'; S.lastDifficulty=diff; S.lastScore=score;
+  const names={}; dead.forEach(e=>names[e.base]=(names[e.base]||0)+1);
+  const live=foes.filter(e=>!e.down);
+  const st=R.start;
+  const hpLine=fr.map(f=>{const was=st&&st.hp&&st.hp[f.id]!=null?st.hp[f.id]+' → ':''; return f.name+' '+was+hpOf(f)+'/'+maxHP(f)+(f.down?' (DOWN)':'')}).join(', ');
+  let used='unknown (fight start was not recorded)';
+  if(st){
+    const u=[[Math.max(0,st.potions-S.inv.potions),'potion'],[Math.max(0,st.medkits-S.inv.medkits),'med kit'],[Math.max(0,st.shards-(S.inv.shards||0)),'Fade Shard']].filter(x=>x[0]>0);
+    used=u.length?u.map(x=>x[0]+' '+x[1]+(x[0]>1?'s':'')).join(', '):'none';
+  }
+  const text=`FIGHT RESULT: ${diff}.${why?' '+why:''}\nRounds: ${R.n-1+(R.lines.length?1:0)}. Damage taken: ${taken}/${mx} (${pct}%). Net HP lost: ${net}%. Lowest HP reached: ${Math.round(minF*100)}%. Downed: ${downs}.\nDefeated: ${Object.keys(names).map(k=>names[k]+' '+k).join(', ')||'none'}.${live.length?'\nStill standing: '+live.map(e=>e.name+' '+hpOf(e)+'/'+e.max+' HP').join(', ')+'.':''}\nHP (start → end): ${hpLine}.\nItems used: ${used}.\nSupplies now: ${S.inv.potions} potions, ${S.inv.medkits} med kits, ${S.inv.shards||0} Fade Shards, ${S.inv.coin} sov.\nLoot (not applied yet): ${ld.coins} sov${ld.items?', '+ld.items+' '+ld.kind:''}${ld.got.length?', drops: '+ld.got.join(', '):''}${ld.shards?', '+ld.shards+' Fade Shards':''}.`;
+  R.result={text,loot:ld,ld,dead:dead.length,sig:rfSig()}; commit();
+}
+function rfApplyLoot(){
+  const R=rf(), L=R.result&&R.result.loot; if(!L) return; rfSnap(); const town=document.getElementById('rf-town')&&document.getElementById('rf-town').checked;
+  const coins=town?Math.floor(L.coins/2):L.coins, items=town?Math.floor(L.items/2):L.items;
+  S.inv.coin+=coins; if(L.kind==='potions') S.inv.potions+=items; else if(L.kind==='medkits') S.inv.medkits+=items; S.inv.shards=(S.inv.shards||0)+(L.shards||0);
+  L.got.forEach(g=>S.inv[g]=(S.inv[g]||0)+1); log(`Loot applied${town?' (town takes half)':''}: ${coins} sov, ${items} ${L.kind}.`); R.result.text+=`\nLoot applied${town?' (town takes half coin and items)':''}.`; R.result.loot=null; R.result.applied=true; commit();
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-rf]'); if(!b) return; const a=b.dataset.rf, id=b.dataset.id;
+  if(a==='roll'){const c=byId(id), sel=rfSel(id); const r=rfRollTotal(c,sel); sel.total=r.total; sel.note=r.text; sel.hits=r.hits||null; sel.mod=r.mod||0; persist();
+    const inp=document.querySelector(`[data-rfsel="total"][data-id="${CSS.escape(id)}"]`); if(inp) inp.value=r.total;
+    const n=document.getElementById('rf-note-'+id); if(n) n.textContent=r.text; return}
+  if(a==='apply') return rfApply(id);
+  if(a==='usesup') return rfUseSup(id);
+  if(a==='plus'||a==='minus'){const inp=document.querySelector(`[data-rfamt="${CSS.escape(id)}"]`); const n=Math.max(0,+inp.value||0); if(!n) return; const t=byId(id); rfSnap(); const before=hpOf(t);
+    rfDelta(t,a==='plus'?n:-n); rfLine(`${t.name} ${a==='plus'?'+':'−'}${n} (${before}→${t.hp})`); return commit()}
+  if(a==='endround') return rfEndRound();
+  if(a!=='newfight'){const Q=rf(); if(Q.confirmNew) Q.confirmNew=false}
+  if(a==='autochar') return rfAutoChar(id);
+  if(a==='autonext') return rfAutoNext();
+  if(a==='orderfirst'){const R=rf(), p=R.warn&&R.warn.pending; return p?rfAutoChar(p,'first'):commit()}
+  if(a==='ordernow'){const R=rf(), p=R.warn&&R.warn.pending; return p?rfAutoChar(p,'now'):commit()}
+  if(a==='ordercancel'){rf().warn=null; return commit()}
+  if(a==='fixinit'){rfEnsureOrder(); return commit()}
+  if(a==='fixallies'){const R=rf(); R.on=R.on||{}; rfAllies().forEach(x=>{R.on[x.id]=true}); return commit()}
+  if(a==='fixflags'){all().filter(c=>c.kind!=='foe').forEach(c=>{c.cds={}; c.used={}; c.statuses=[]}); return commit()}
+  if(a==='fixhp'){all().forEach(c=>{const m=maxHP(c); c.hp=Math.max(0,Math.min(m,hpOf(c))); c.down=c.hp===0}); return commit()}
+  if(a==='optloot'){S.autoOpts=S.autoOpts||{}; S.autoOpts.loot=!S.autoOpts.loot; return commit()}
+  if(a==='optrest'){S.autoOpts=S.autoOpts||{}; S.autoOpts.rest=!S.autoOpts.rest; return commit()}
+  if(a==='optshard'){S.autoOpts=S.autoOpts||{}; S.autoOpts.shards=!S.autoOpts.shards; return commit()}
+  if(a==='autoround') return rfAutoRound();
+  if(a==='autofight') return rfAutoFight();
+  if(a==='enemiesact') return rfEnemiesAct();
+  if(a==='undo') return rfUndo(); if(a==='shortrest') return rfShortRest(); if(a==='refuse') return rfRefuseSurrender();
+  if(a==='finish') return rfFinish();
+  if(a==='applyloot') return rfApplyLoot();
+  if(a==='copy'){const t=document.getElementById('rf-result-text'); if(t){t.select(); try{navigator.clipboard.writeText(t.value)}catch(err){document.execCommand&&document.execCommand('copy')} b.textContent='Copied!'; setTimeout(()=>{b.textContent='Copy results'},1500)} return}
+  if(a==='addrule'){const R=rf(); const who=document.getElementById('rf-rwho').value, act=document.getElementById('rf-ract').value, below=Math.max(1,Math.min(99,+document.getElementById('rf-rbelow').value||40)); (R.standing=R.standing||[]).push({who,act,below}); return commit()}
+  if(a==='delrule'){const R=rf(); (R.standing||[]).splice(+b.dataset.i,1); return commit()}
+  if(a==='newfight') return rfNewFight();
+  if(a==='init'){rollInitiative(); S.order=S.order.filter(id=>S.enemies.some(e=>e.id===id)||rfActive(id)); return commit()}
+  if(a==='addenemy'){const pre=document.getElementById('rf-pre').value, n=Math.max(1,+document.getElementById('rf-n').value||1);
+    for(let i=0;i<n;i++){const p=ENEMY_PRESETS[pre]; addEnemy(pre,p.die,p.rank,p.ftype,p.w)} return}
+  if(a==='addcustom'){const nm=(document.getElementById('rf-cname').value||'Enemy').trim()||'Enemy', n=Math.max(1,+document.getElementById('rf-cn').value||1);
+    for(let i=0;i<n;i++) addEnemy(nm,document.getElementById('rf-cdie').value,document.getElementById('rf-crank').value,document.getElementById('rf-ctype').value,+document.getElementById('rf-cw').value); return}
+  if(a==='reroll'){rfPopRoll(); return rfPopShow()}
+  if(a==='confirm') return rfPopConfirm();
+  if(a==='close') return rfPopClose();
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='rf-healbelow'){S.autoOpts=S.autoOpts||{}; S.autoOpts.healBelow=Math.max(10,Math.min(100,+t.value||50)); return commit()}
+  if(t.dataset&&t.dataset.rf==='brew'){S._pop.brewed=t.checked; rfPopRoll(); return rfPopShow()}
+  if(t.dataset&&t.dataset.rfon){const R=rf(), c=byId(t.dataset.rfon); if(c.kind==='pc'){R.off=R.off||{}; R.off[c.id]=!t.checked} else {R.on=R.on||{}; R.on[c.id]=t.checked; if(t.checked) c.last=Date.now()} S.order=S.order.filter(id=>S.enemies.some(e=>e.id===id)||rfActive(id)); return commit()}
+  if(!t.dataset||!t.dataset.rfsel) return;
+  const sel=rfSel(t.dataset.id), k=t.dataset.rfsel;
+  if(k==='adv'||k==='shard') sel[k]=t.checked; else if(k==='total') sel.total=t.value; else sel[k]=t.value;
+  if(k==='ab'||k==='shard'||k==='tgt'){ commit(); return }
+  persist();
+});
+
+/* ---------- render ---------- */
+const WARDENS=new Set(['Anton','Tyr','Bastian','Pike','Brannick','Wat','Wren']);
+const DRYDENS=new Set(['Anton','Ray','Hazel']);
+function gwSvg(){return `<svg class="warden-badge" viewBox="0 0 100 87.0" role="img" aria-label="Grey Warden"><title>Grey Warden</title><use href="#gr-badge"/></svg>`}
+function drSvg(){return `<svg class="dryden-badge" viewBox="0 0 100 100" role="img" aria-label="House Dryden"><title>House Dryden</title><use href="#dr-crest"/></svg>`}
+function wardenBadge(name){return (DRYDENS.has(name)?drSvg():'')+(WARDENS.has(name)?gwSvg():'')}
+function tempTag(c){return c.temp?` <span class="chip status">+${c.temp} temp</span>`:''}
+function hpBar(c){
+  const mx=maxHP(c), h=hpOf(c), p=Math.max(0,Math.round(h/mx*100));
+  const cls=p<=25?'low':p<=50?'mid':'';
+  return `<div class="hp"><div class="hp-track" role="meter" aria-valuemin="0" aria-valuemax="${mx}" aria-valuenow="${h}" aria-label="${c.name} health"><div class="hp-fill ${cls}" style="width:${p}%"></div></div>
+  <div class="hp-num"><span><b>${h}</b> / ${mx} HP${tempTag(c)}</span><span>${c.down?(isFriendly(c)?'Downed':'Defeated'):''}</span></div></div>`;
+}
+function chips(c){
+  const out=[];
+  if(c.kind==='pc') Object.keys(c.known).forEach(k=>{const ab=ABILITIES[c.name].find(a=>a.n===k); if(!ab||ab.cd===0) return; const cd=c.cds[k]||0; out.push(`<span class="chip ${cd?'cd':'ready'}">${k}${cd?' · '+cd:''}</span>`)});
+  c.statuses.forEach(s=>out.push(`<span class="chip ${s.name==='Burn'?'burn':'status'}">${s.name}${s.pct?' '+s.pct+'%':''} · ${s.turns}</span>`));
+  return out.length?`<div class="chips">${out.join('')}</div>`:'';
+}
+function opts(list,sel){return list.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${c.name}${c.down?' (down)':''}</option>`).join('')}
+
+function renderParty(){
+  const el=document.getElementById('p-party');
+  el.innerHTML=`<div class="row" style="margin-bottom:1rem"><label class="field">Party level<input type="number" id="lvl" value="${S.level}" min="1" max="20"></label>
+  <span class="muted">Proficiency +${profBonus()}. Changing level recalculates max HP; current HP keeps any damage.</span></div>
+  <div class="grid">${S.party.map(c=>`
+    <div class="card"><h3><span>${c.name}${wardenBadge(c.name)}</span><span class="tag"><label><input type="checkbox" data-inparty="${c.name}" ${c.inParty?'checked':''}> In party</label></span></h3>
+    <div class="muted" style="font-size:.9rem">${c.armorType} armor · ${c.weapon}${c.alt?' / '+c.alt:''} · ${c.note}</div>
+    <div class="tablewrap"><table><tr>${Object.keys(c.mods).map(k=>`<th>${k}</th>`).join('')}<th>Max HP</th></tr>
+    <tr>${Object.entries(c.mods).map(([k,v])=>`<td>${c.scores&&c.scores[k]!=null?c.scores[k]+' ('+(v>=0?'+':'')+v+')':(v>=0?'+':'')+v}</td>`).join('')}<td>${maxHP(c)}</td></tr></table></div>
+    <div class="row">
+      <label class="field">Weapon tier<input type="number" min="1" max="4" data-gear="${c.name}:wTier" value="${c.wTier}"></label>
+      ${['chest','gauntlets','greaves','boots'].map(p=>`<label class="field">${p}<input type="number" min="0" max="4" data-gear="${c.name}:${p}" value="${c.armor[p]}"></label>`).join('')}
+      ${c.name==='Tyr'?`<label class="field">Shield<input type="number" min="0" max="4" data-gear="${c.name}:shield" value="${c.shield}"></label>`:''}
+    </div>
+    <div style="margin-top:.5rem">${ABILITIES[c.name].map(a=>`<div class="ab"><div class="row" style="margin:0;justify-content:space-between">
+      <label><input type="checkbox" data-know="${c.name}:${a.n}" ${c.known[a.n]?'checked':''}> <b>${a.n}</b> <span class="muted">${a.cd?'cooldown '+a.cd:'passive / no cooldown'}</span></label>
+      <span><label title="Auto mode uses starred abilities first" style="margin-right:.5rem"><input type="checkbox" data-star="${c.name}:${a.n}" ${c.stars&&c.stars[a.n]?'checked':''} aria-label="Prioritize ${a.n} in auto mode"> ★</label><select data-tier="${c.name}:${a.n}" aria-label="${a.n} tier">${[1,2,3].map(t=>`<option ${(c.known[a.n]||1)===t?'selected':''} value="${t}">T${t}</option>`).join('')}</select></span></div>
+      <p>${a.t[(c.known[a.n]||1)-1]}</p></div>`).join('')}</div>
+    </div>`).join('')}</div>`;
+}
+function renderSupplies(){
+  const el=document.getElementById('p-supplies'); const p=S.lootPrefill||{basic:0,elite:0,boss:0,type:'darkspawn'};
+  const everyone=[...S.party.filter(c=>c.inParty),...S.allies];
+  el.innerHTML=`<div class="two">
+  <div class="action"><h2>Supplies</h2>
+    <div class="tablewrap"><table>
+      ${[['coin','Sovereigns'],['potions','Health potions'],['medkits','Med kits'],['rations','Ration packs'],['shards','Fade Shards'],['herbs','Herbs'],['materials','Materials'],['valuables','Valuables']].map(([k,l])=>`<tr><td>${l}</td><td class="big">${S.inv[k]||0}</td><td><button data-inv="${k}:-1" aria-label="Remove one ${l}">−</button> <button data-inv="${k}:1" aria-label="Add one ${l}">+</button></td></tr>`).join('')}
+    </table></div>
+    <div class="row" style="margin-top:.7rem">
+      <label class="field">Use on<select id="u-tgt">${opts(everyone)}</select></label>
+      <label class="field">Given by<select id="u-by"><option value="">Anyone</option>${everyone.map(c=>`<option>${c.name}</option>`).join('')}</select></label>
+      <button id="u-med">Use med kit</button><button id="u-pot">Drink potion</button><button id="u-ration">Eat a day’s ration</button>
+    </div>
+    <p class="muted" style="font-size:.88rem">Med kit 1d6+2 (Leon: Field Medic). Potion 2d6+2. Tyr gets +2 from both. Only med kits and Revive work on downed allies.</p>
+  </div>
+  <div class="action"><h2>Loot</h2>
+    <div class="row">
+      <label class="field">Basic<input type="number" id="l-basic" value="${p.basic}" min="0"></label>
+      <label class="field">Elite<input type="number" id="l-elite" value="${p.elite}" min="0"></label>
+      <label class="field">Boss<input type="number" id="l-boss" value="${p.boss}" min="0"></label>
+      <label class="field">Enemy type<select id="l-type">${Object.keys(DROP_TYPE).map(k=>`<option ${k===p.type?'selected':''}>${k}</option>`).join('')}</select></label>
+      <button class="primary" id="l-roll">Roll loot</button>
+    </div>
+    ${S.lastLoot?`<div class="result">${esc(S.lastLoot)}</div>`:''}
+  </div>
+  <div class="action"><h2>Quick actions</h2>
+    <div class="row"><button id="qa-short">Short rest</button><button id="qa-night">Full night's sleep</button><button id="qa-resume">Copy resume card</button></div>
+    <div class="row" style="margin-top:.6rem"><label class="field">Supply<select id="qa-key">${[['coin','Sovereigns'],['potions','Potions'],['medkits','Med kits'],['rations','Rations'],['shards','Fade Shards'],['herbs','Herbs'],['materials','Materials'],['valuables','Valuables']].map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label class="field">Change by (use a minus to spend)<input type="number" id="qa-amt" value="1"></label><button id="qa-adj">Apply</button></div>
+    <div class="row" style="margin-top:.6rem"><label class="field">New special item<input id="qa-name" placeholder="Name"></label><label class="field">Description<input id="qa-desc" placeholder="What it is"></label>
+      <label class="field">Group<select id="qa-group">${[...new Set((S.special||[]).map(x=>x.group||'Other'))].map(g=>`<option>${esc(g)}</option>`).join('')}<option>Other</option></select></label><button id="qa-add">Add item</button></div>
+    <div class="row" style="margin-top:.6rem"><label class="field" style="flex:1">New open thread<input id="qa-thread" placeholder="A promise, pickup or delivery to remember"></label><button id="qa-thr">Add thread</button></div>
+    <div id="qa-msg" class="muted" style="margin-top:.4rem"></div>
+  </div>
+  <div class="action"><h2>Special items</h2>
+    ${(S.special||[]).length?spGrouped(S.special||[]):'<p class="muted">None yet.</p>'}
+  </div>
+  <div class="action"><h2>Renn's maps</h2>
+    <p class="muted" style="margin-top:0">Places Renn has a map for. Check here before heading somewhere new.</p>
+    ${(S.maps||[]).length?(S.maps||[]).map(it=>`<div class="si-item"><h3 class="si-name">${esc(it.name)}</h3><p class="si-desc">${esc(it.desc||'')}</p></div>`).join(''):'<p class="muted">No maps yet.</p>'}
+  </div>
+  <div class="action"><h2>Base storage</h2>
+    <p class="muted" style="margin-top:0">Items kept at the Wardens' base to display or store.</p>
+    ${(S.baseStore||[]).length?(S.baseStore||[]).map(it=>`<div class="si-item"><h3 class="si-name">${esc(it.name)}</h3><p class="si-desc">${esc(it.desc||'')}</p></div>`).join(''):'<p class="muted">Nothing stored yet.</p>'}
+  </div>
+  <div class="action"><h2>Shop</h2>
+    <div class="row"><button id="s-roll">Roll shop prices</button></div>
+    ${S.lastShop?`<div class="result">${esc(S.lastShop)}</div>`:''}
+    <div class="tablewrap"><table style="margin-top:.6rem"><tr><th>Base price</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th></tr>
+      <tr><td>Weapon / shield</td><td>15</td><td>45</td><td>120</td><td>300+</td></tr>
+      <tr><td>Chest</td><td>20</td><td>60</td><td>160</td><td>400+</td></tr>
+      <tr><td>Gauntlets, greaves, boots</td><td>8</td><td>25</td><td>65</td><td>160+</td></tr>
+      <tr><td>Ration pack 1 · Med kit 2 · Potion 3</td><td colspan="4"></td></tr></table></div>
+  </div>
+  <div class="action"><h2>Skill check</h2>
+    <div class="row">
+      <label class="field">Who<select id="k-who">${S.party.filter(c=>c.inParty).map(c=>`<option>${c.name}</option>`).join('')}</select></label>
+      <label class="field">Stat<select id="k-stat">${['STR','DEX','CON','INT','WIS','CHA'].map(s=>`<option>${s}</option>`).join('')}</select></label>
+      <label class="field"><span>Proficient</span><input type="checkbox" id="k-prof"></label>
+      <label class="field">Extra dice<input id="k-extra" placeholder="1d6" style="width:5rem"></label>
+      <button class="primary" id="k-roll">Roll check</button>
+    </div>
+    ${S.lastCheck?`<div class="result">${esc(S.lastCheck)}</div>`:''}
+  </div></div>`;
+}
+function spGrouped(list){ const order=[]; const by={}; list.forEach(it=>{const g=it.group||'Other'; if(!by[g]){by[g]=[]; order.push(g)} by[g].push(it)}); return order.map(g=>`<h3 class="si-group" style="margin:.9rem 0 .2rem;font-size:1rem;opacity:.85">${esc(g)}</h3>`+by[g].map(it=>`<div class="si-item"><h3 class="si-name">${esc(it.name)}${it.from==='dryden'?drSvg():it.from==='tyr'?gwSvg():''}</h3><p class="si-desc">${esc(it.desc||'')}</p><button data-spdel="${S.special.indexOf(it)}" style="font-size:.8rem">Remove</button></div>`).join('')).join('') }
+let TABDOCS=null;
+const OPENDOCS={};
+function docHtml(key,title,intro){
+  const secs=((TABDOCS||S.docs||{})[key])||[];
+  const line=l=>l.startsWith('- ')?`<div style="margin:.15rem 0 .15rem .8rem">• ${esc(l.slice(2))}</div>`:l.startsWith('## ')?`<h4 style="margin:.7rem 0 .1rem">${esc(l.slice(3))}</h4>`:`<p style="margin:.3rem 0">${esc(l)}</p>`;
+  return `<div class="action"><h2>${esc(title)}</h2><p class="muted" style="margin-top:0">${esc(intro)}</p>${secs.length?secs.map((x,i)=>{const k=key+':'+i, op=(OPENDOCS[k]!==undefined?OPENDOCS[k]:x.open); return `<details data-dk="${k}" ${op?'open':''} style="margin:.5rem 0"><summary style="cursor:pointer;font-weight:600">${esc(x.t)}</summary><div style="padding:.4rem 0 .2rem .6rem">${(x.b||[]).map(line).join('')}</div></details>`}).join(''):'<p class="muted">Nothing here yet.</p>'}</div>`
+}
+function renderDocs(){
+  const c=document.getElementById('p-chars'), b=document.getElementById('p-beats'), r=document.getElementById('p-rules');
+  if(c) c.innerHTML=docHtml('chars','Characters','The core four in detail, Anton\u2019s parents, and the people who matter. Tap a name to open it.');
+  if(b) b.innerHTML=docHtml('beats','Story beats','Canon beats and where we are in them. Collapsed so nothing gets spoiled; tap to reveal.');
+  if(r) r.innerHTML=docHtml('rules','Rules','How the game works: combat, healing, Fade Shards, loot, shops, travel and tracker conventions.');
+}
+document.addEventListener('toggle',e=>{const d=e.target; if(d&&d.dataset&&d.dataset.dk) OPENDOCS[d.dataset.dk]=d.open},true);
+function qaMsg(t){const el=document.getElementById('qa-msg'); if(el) el.textContent=t}
+function resumeCard(){
+  const sec=(S.story&&S.story.sections)||[]; const scene=(sec[0]&&sec[0].items&&sec[0].items[0])||'';
+  const pcs=S.party.filter(c=>c.inParty).map(c=>`${c.name} ${hpOf(c)}/${maxHP(c)}`).join(', ');
+  const v=S.inv||{}; const th=((sec[2]&&sec[2].items)||[]).map(x=>'- '+x).join('\n'); const last=(S.log||[]).slice(0,6).map(x=>'- '+x.m).join('\n');
+  return `RESUME CARD (The Grey Road)\nScene: ${scene}\nLevel ${S.level}. HP: ${pcs}.\nSupplies: ${v.coin||0} sov, ${v.potions||0} potions, ${v.medkits||0} med kits, ${v.rations||0} rations, ${v.shards||0} Fade Shards, ${v.herbs||0} herbs.\nOpen threads:\n${th}\nLast events:\n${last}\nCampaign log: https://claude.ai/artifact/2hLaTPha6Gn6nWevxexktR\nTracker: https://claude.ai/artifact/TsYk7114xhjgSE4GYxWkDG`
+}
+async function qaCopy(txt){ try{ await navigator.clipboard.writeText(txt); return true }catch(e){ try{ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok }catch(e2){ return false } } }
+function qaRest(kind){
+  const out=[]; S.party.filter(c=>c.inParty).forEach(c=>{const mx=maxHP(c), b=hpOf(c); c.hp=kind==='night'?mx:Math.min(mx,b+Math.floor(mx/4)); c.down=false; c.temp=0; c.cds={}; c.used={}; c.statuses=[]; out.push(`${c.name} ${b}→${c.hp}/${mx}`)});
+  const msg=(kind==='night'?'Full night’s sleep: ':'Short rest: ')+out.join(', '); log(msg); S.lastResult=msg; commit(); qaMsg(msg)
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.id==='qa-short') return qaRest('short');
+  if(b.id==='qa-night') return qaRest('night');
+  if(b.id==='qa-resume'){const ok=await qaCopy(resumeCard()); return qaMsg(ok?'Resume card copied. Paste it into a new chat.':'Could not copy on this device.')}
+  if(b.id==='qa-adj'){const k=val('qa-key'), n=parseInt(val('qa-amt'),10)||0; if(!n) return qaMsg('Enter a number first.'); S.inv[k]=Math.max(0,(S.inv[k]||0)+n); log(`Supplies: ${k} ${n>0?'+':''}${n} (now ${S.inv[k]})`); commit(); return qaMsg(`${k} is now ${S.inv[k]}`)}
+  if(b.id==='qa-add'){const nm=val('qa-name').trim(); if(!nm) return qaMsg('Give the item a name.'); S.special=S.special||[]; S.special.push({name:nm,desc:val('qa-desc').trim(),group:val('qa-group')||'Other'}); log('Special item added: '+nm); commit(); return}
+  if(b.id==='qa-thr'){const tx=val('qa-thread').trim(); if(!tx) return qaMsg('Type the thread first.'); const sec=S.story&&S.story.sections; const t=sec&&sec.find(x=>/open thread/i.test(x.title||'')); if(!t) return qaMsg('No Open threads section found.'); t.items.push(tx); log('Open thread added: '+tx); commit(); return}
+  if(b.dataset.spdel!==undefined){const i=+b.dataset.spdel, it=S.special[i]; if(it){S.special.splice(i,1); log('Special item removed: '+it.name); commit()} return}
+  if(b.dataset.thdel!==undefined){const sec=S.story.sections.find(x=>/open thread/i.test(x.title||'')); const i=+b.dataset.thdel; if(sec&&sec.items[i]!==undefined){const t=sec.items.splice(i,1)[0]; log('Open thread closed: '+t.slice(0,60)); commit()} return}
+});
+function renderStory(){
+  const st=S.story||{};
+  const sec=(st.sections||[]);
+  document.getElementById('p-story').innerHTML=`<div class="action"><h2>Story so far</h2>
+    ${st.updated?`<p class="muted" style="margin-top:0">Updated ${esc(st.updated)}${st.doc?` · <a href="${esc(st.doc)}" target="_blank" rel="noopener" style="color:var(--warden)">Full campaign log</a>`:''}</p>`:''}
+    ${sec.length?sec.map(s=>`<div class="ab"><h3 style="font-size:1.15rem;margin:.3rem 0">${esc(s.title)}</h3>${(s.items||[]).map((i,ix)=>`<p style="margin:.25rem 0">${esc(i)}${/open thread/i.test(s.title||'')?` <button data-thdel="${ix}" style="font-size:.78rem">Done</button>`:''}</p>`).join('')}</div>`).join(''):'<p class="muted">No summary yet.</p>'}
+  </div>`;
+}
+function renderRecruits(){
+  const list=S.recruits||[], groups=S.recruitGroups||{};
+  const bullets=r=>((r.points&&r.points.length)||r.found||r.skills||r.task||r.notes)?`<ul class="rc-list">${(r.points||[]).map(p=>`<li>${esc(p)}</li>`).join('')}${r.found?`<li><b>Found:</b> ${esc(r.found)}</li>`:''}${r.skills?`<li><b>Skills:</b> ${esc(r.skills)}</li>`:''}${r.task?`<li><b>Agreed to:</b> ${esc(r.task)}</li>`:''}${r.notes?`<li><b>Notes:</b> ${esc(r.notes)}</li>`:''}</ul>`:'';
+  const sym=r=>(r.warden||WARDENS.has(r.name))?gwSvg():'';
+  const single=r=>`<div class="card rc-card"><h3 class="rc-name">${esc(r.name)}${sym(r)}</h3>${r.status?`<div class="rc-status">${esc(r.status)}</div>`:''}${bullets(r)}</div>`;
+  const names=[]; list.forEach(r=>{if(r.group&&!names.includes(r.group)) names.push(r.group)});
+  const groupCard=g=>{const ms=list.filter(r=>r.group===g), info=groups[g]||{}; const st=info.status||(ms[0]&&ms[0].status)||'';
+    return `<div class="card rc-card rc-group"><h3 class="rc-name">${esc(g)} <span class="rc-count">${ms.length} recruits</span></h3>${st?`<div class="rc-status">${esc(st)}</div>`:''}
+      ${(info.points&&info.points.length)?`<ul class="rc-list">${info.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
+      <div class="rc-members">${ms.map(m=>`<div class="rc-member"><h4>${esc(m.name)}${sym(m)}</h4>${bullets(m)}</div>`).join('')}</div></div>`};
+  const cards=[]; const seen=new Set();
+  list.forEach(r=>{ if(r.group){ if(!seen.has(r.group)){seen.add(r.group); cards.push(groupCard(r.group))} } else cards.push(single(r)) });
+  document.getElementById('p-recruits').innerHTML=`<div class="action"><h2>Recruits</h2>
+    <p class="muted" style="margin-top:0">Everyone Anton wins over is sent to Redcliffe. ${list.length} so far.</p>
+    ${list.length?`<div class="grid">${cards.join('')}</div>`:'<p>No recruits yet.</p>'}
+  </div>`;
+}
+
+function renderLog(){
+  document.getElementById('p-log').innerHTML=`<div class="row" style="margin-bottom:.6rem"><button class="danger" id="log-clear">Clear log</button><button class="danger" id="reset-all">Reset everything</button></div>
+  <div class="log">${S.log.length?S.log.map(l=>`<div><time>${new Date(l.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time>${esc(l.m)}</div>`).join(''):'<p class="muted">Rolls and results will show up here.</p>'}</div>`;
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function render(){
+  document.getElementById('m-level').textContent=S.level;
+  document.getElementById('m-round').textContent=S.enemies.length?rf().n:'—';
+  document.getElementById('m-turn').innerHTML=(S.enemies.length&&rfNextId())?`Next: <b>${esc(rfWho(rfNextId()))}</b>`:'';
+  renderRounds();renderParty();renderSupplies();renderStory();renderRecruits();renderDocs();renderLog();
+}
+
+/* ---------- events ---------- */
+document.querySelector('nav.tabs').addEventListener('click',e=>{
+  const b=e.target.closest('[data-tab]'); if(!b) return;
+  document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  document.querySelectorAll('section.panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.tab));
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='a-who'){S._who=t.value; commit(); return}
+  if(t.id==='lvl'){S.level=Math.max(1,+t.value||1); all().forEach(c=>{if(c.kind==='pc') c.hp=Math.min(hpOf(c),maxHP(c))}); log(`Party is now level ${S.level}.`); commit(); return}
+  if(t.dataset.inparty){const c=S.party.find(x=>x.name===t.dataset.inparty); c.inParty=t.checked; log(`${c.name} ${t.checked?'joins':'leaves'} the party.`); commit(); return}
+  if(t.dataset.gear){const [n,k]=t.dataset.gear.split(':'); const c=S.party.find(x=>x.name===n); const v=Math.max(0,Math.min(4,+t.value||0));
+    const oldMax=maxHP(c); if(k==='wTier') c.wTier=v; else if(k==='shield') c.shield=v; else c.armor[k]=v; c.hp=Math.max(0,hpOf(c)+(maxHP(c)-oldMax)); commit(); return}
+  if(t.dataset.know){const [n,a]=t.dataset.know.split(':'); const c=S.party.find(x=>x.name===n); if(t.checked) c.known[a]=c.known[a]||1; else delete c.known[a]; commit(); return}
+  if(t.dataset.star){const [n,a]=t.dataset.star.split(':'); const c=S.party.find(x=>x.name===n); c.stars=c.stars||{}; if(t.checked) c.stars[a]=true; else delete c.stars[a]; commit(); return}
+  if(t.dataset.tier){const [n,a]=t.dataset.tier.split(':'); const c=S.party.find(x=>x.name===n); if(c.known[a]) c.known[a]=+t.value; commit(); return}
+});
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const id=t.id;
+  if(t.dataset.dmg||t.dataset.heal){
+    const cid=t.dataset.dmg||t.dataset.heal; const c=byId(cid); const inp=document.querySelector(`[data-amt="${CSS.escape(cid)}"]`); const n=Math.max(0,+inp.value||0); if(!n) return;
+    if(t.dataset.dmg){const r=applyDamage(c,n); log(`${c.name} takes ${r.amt}${r.note} (manual).`)}
+    else {c.hp=Math.min(maxHP(c),hpOf(c)+n); if(c.hp>0) c.down=false; log(`${c.name} heals ${n} (manual).`)}
+    return commit();
+  }
+  if(t.dataset.remove){const cid=t.dataset.remove; S.enemies=S.enemies.filter(x=>x.id!==cid); S.allies=S.allies.filter(x=>x.id!==cid);
+    const i=S.order.indexOf(cid); if(i>=0){S.order.splice(i,1); if(S.turn>=S.order.length) S.turn=0} return commit()}
+  if(t.dataset.inv){const [k,d]=t.dataset.inv.split(':'); S.inv[k]=Math.max(0,(S.inv[k]||0)+(+d)); return commit()}
+  if(id==='u-med'||id==='u-pot'){
+    const tgt=byId(val('u-tgt')); if(!tgt) return; const by=val('u-by'); const key=id==='u-med'?'medkits':'potions';
+    if(S.inv[key]<=0){S.lastResult=`No ${key==='medkits'?'med kits':'potions'} left.`; return commit()}
+    let expr=id==='u-med'?'1d6+2':'2d6+2', extra=0;
+    if(id==='u-med'&&by==='Leon'){const L=S.party.find(c=>c.name==='Leon'); const tr=L.known['Field Medic']; if(tr) expr=ABILITIES.Leon[0].t[tr-1].match(/\d+d\d+\+\d+/)[0]; extra+=2}
+    const r=rollExpr(expr); const amt=r.total+extra+(tgt.healBonus||0);
+    const h=heal(tgt,amt,id==='u-med');
+    if(h.blocked){S.lastResult=`${tgt.name} is downed. Only a med kit or Revive can bring them back.`; return commit()}
+    S.inv[key]--; S.lastResult=`${id==='u-med'?'Med kit':'Potion'} on ${tgt.name}: [${r.faces}]+${r.flat}${extra?'+'+extra:''}${tgt.healBonus?'+'+tgt.healBonus:''} → heals ${h.gained}. ${tgt.name} at ${tgt.hp}/${maxHP(tgt)}.`;
+    log(S.lastResult); return commit();
+  }
+  if(id==='u-ration'){if(S.inv.rations<=0){S.lastResult='No rations left.';return commit()} S.inv.rations--; log('The party eats a day’s ration.'); return commit()}
+  if(id==='l-roll'){
+    const r=rollLoot(+val('l-basic')||0,+val('l-elite')||0,+val('l-boss')||0,val('l-type'));
+    S.inv.coin+=r.coins; if(r.kind==='potions') S.inv.potions+=r.items; if(r.kind==='medkits') S.inv.medkits+=r.items; S.inv.shards+=r.shards;
+    S.lastLoot=`Sovereigns: ${r.coins} (${r.parts.join(' + ')||'none'})\n${r.items?`${r.items} ${r.kind==='potions'?'health potion(s)':'med kit(s)'}`:'No consumables'}${r.shards?`\nFade Shards: ${r.shards}`:''}\nAdded to supplies.`;
+    log('Loot: '+S.lastLoot.replace(/\n/g,' ')); S.lootPrefill=null; return commit();
+  }
+  if(id==='s-roll'){
+    const d=rnd(6), pct=10+rnd(6)-1, s=rnd(20);
+    S.lastShop=`Price roll d6: ${d} → prices ${d<=3?'lower':'higher'} by ${pct}%.\nSale roll d20: ${s} → ${s<=4?'one random item is 50% off':'no sale'}.`;
+    log('Shop: '+S.lastShop.replace(/\n/g,' ')); return commit();
+  }
+  if(id==='k-roll'){
+    const c=S.party.find(x=>x.name===val('k-who')); const st=val('k-stat'); const r=rnd(20);
+    let tot=r+c.mods[st], parts=[`d20 ${r}`,`${st} ${c.mods[st]>=0?'+':''}${c.mods[st]}`];
+    if(chk('k-prof')){tot+=profBonus();parts.push(`prof +${profBonus()}`)}
+    if(c.name==='Anton'&&st==='CHA'){tot+=2;parts.push('Anton CHA +2')}
+    const ex=val('k-extra'); if(ex){const x=rollExpr(ex); tot+=x.total; parts.push(`${ex} [${x.faces}]`)}
+    S.lastCheck=`${c.name} ${st} check: ${tot}  (${parts.join(', ')})`; log(S.lastCheck); return commit();
+  }
+  if(id==='log-clear'){S.log=[];return commit()}
+  if(id==='reset-all'){if(confirm('Reset all characters, enemies, supplies and the log?')){S=defaults();commit()}}
+});
+function val(id){const el=document.getElementById(id); return el?el.value:''}
+function chk(id){const el=document.getElementById(id); return el?el.checked:false}
+
+/* ---------- boot ---------- */
+try{const saved=localStorage.getItem('greyroad'); if(saved){const p=JSON.parse(saved); if(p&&p.v===1) S=p}}catch(e){}
+render();
+(async()=>{
+  try{
+    if(!window.claude||!window.claude.use) return;
+    const [db,user]=await Promise.all([claude.use('db'),claude.use('user')]);
+    if(!db||!user) return;
+    const id=await user.id(); if(!id) return;
+    const ref=db.collection('data/users/'+id).doc('tracker');
+    const timer=setTimeout(()=>setSave('Saved on this device'),10000);
+    const snap=await ref.get(); clearTimeout(timer);
+    dbRef=ref;
+    if(snap.exists){const d=snap.data(); if(d&&d.state){const p=JSON.parse(d.state); if(p&&p.v===1){S=p; render()}}}
+    setSave('Saved to your account');
+    try{ const dsn=await db.collection('data/users/'+id).doc('tabdocs').get(); if(dsn.exists){const dd=dsn.data(); if(dd&&dd.docs){TABDOCS=JSON.parse(dd.docs); renderDocs()}} }catch(e){}
+  }catch(e){setSave('Saved on this device')}
+})();
+</script>
+</body>
+</html>
